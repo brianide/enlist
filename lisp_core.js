@@ -1,4 +1,4 @@
-function(c,a){return #fs.hg.lisp().save('core', `
+function(c,a){return #db.u({type:'lisp_scr', name:'_core'},{$set:{body:`
 
 // SYSTEM //
 
@@ -9,24 +9,24 @@ function(c,a){return #fs.hg.lisp().save('core', `
 (defn boolean [a] (if a true false))
 
 (defn nil? [a] (if ($exact a false) false ($eq a nil)))
-(defn seq? [coll] ($call $Array :isArray coll))
-(defn string? [a] (and a ($exact $String ($get a :constructor))))
-(defn number? [a] (and a ($exact $Number ($get a :constructor))))
-(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ($get a :constructor))))
+(defn seq? [coll] ($call $Array 'isArray coll))
+(defn string? [a] (and a ($exact $String ($get a 'constructor))))
+(defn number? [a] (and a ($exact $Number ($get a 'constructor))))
+(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ($get a 'constructor))))
 (defn true? [a] ($exact a true))
 (defn false? [a] ($exact a false))
-(defn map? [a] (and a ($exact $Object ($get a :constructor))))
-(defn function? [a] (and a ($exact $Function ($get a :constructor))))
-(defn regex? [a] (and a ($exact $RegExp ($get a :constructor))))
+(defn map? [a] (and a ($exact $Object ($get a 'constructor))))
+(defn function? [a] (and a ($exact $Function ($get a 'constructor))))
+(defn regex? [a] (and a ($exact $RegExp ($get a 'constructor))))
 
 (def gensym
   (let [cnt (atom 0)]
     (fn [a]
       (swap! cnt inc)
-      (symbol (str (if a a "G__") @cnt)))))
+      (str (if a a "G__") @cnt))))
 
 (defn == [a b]
-  ($exact ($valueOf a) ($valueOf b)))
+  ($exact ($val a) ($val b)))
 
 (defn = [a b]
   (cond
@@ -49,6 +49,7 @@ function(c,a){return #fs.hg.lisp().save('core', `
 // Higher Order Functions
 (defn map [f coll] ($call coll 'map (fn [x] (f x))))
 (defn filter [p coll] ($call coll 'filter (fn [x] (p x))))
+(defn remove [p coll] (filter (complement p) coll))
 (defn reduce [f i coll] ($call coll 'reduce (fn [a v] (f a v)) i))
 (defn reduce-right [f i coll] ($call coll 'reduceRight (fn [a v] (f a v)) i))
 (defn every? [p coll] ($call coll 'every (fn [x] (p x))))
@@ -62,6 +63,8 @@ function(c,a){return #fs.hg.lisp().save('core', `
 (defn take [n coll] ($call coll 'slice 0 n))
 (defn drop [n coll] ($call coll 'slice n))
 (defn rest [coll] (drop 1 coll))
+(defn find [p coll] ($call coll 'find (fn [x] (p x))))
+(defn split-at [n coll] (list (take n coll) (drop n coll)))
 
 // Other
 (defn list [& xs] xs)
@@ -79,7 +82,7 @@ function(c,a){return #fs.hg.lisp().save('core', `
     (cond
       (seq? c) c
       (map? c) (map (fn [k] [k (get c k)]) (keys c))
-      (string? c) ($call c :split ""))))
+      (string? c) ($call c 'split ""))))
 
 (defn partition [n coll]
   (if (empty? coll)
@@ -90,10 +93,10 @@ function(c,a){return #fs.hg.lisp().save('core', `
 
 // MATH //
 
-(defn + [& ns] (reduce $add 0 ns))
-(defn - [n & ns] (if (empty? ns) ($sub 0 n) (reduce $sub n ns)))
-(defn * [& ns] (reduce $mul 1 ns))
-(defn / [n & ns] (if (empty? ns) ($div 1 n) (reduce $div n ns)))
+//(defn + [& ns] (reduce $add 0 ns))
+//(defn - [n & ns] (if (empty? ns) ($sub 0 n) (reduce $sub n ns)))
+//(defn * [& ns] (reduce $mul 1 ns))
+//(defn / [n & ns] (if (empty? ns) ($div 1 n) (reduce $div n ns)))
 
 (def max ($get $Math 'max))
 (def min ($get $Math 'min))
@@ -121,7 +124,7 @@ function(c,a){return #fs.hg.lisp().save('core', `
 (defn keys [m] ($call $Object 'keys m))
 (defn vals [m] ($call $Object 'values m))
 (defn get [m k d] (or ($get m k) d))
-(defn contains? [m k] ($in m k))
+(defn contains? [m k] ($in k m))
 
 (defn assoc [m k v & kvs]
   (let [m ($call $Object 'assign {} m)]
@@ -208,14 +211,6 @@ function(c,a){return #fs.hg.lisp().save('core', `
   ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
 
 
-
-// Invocables
-
-//(typefn $Object invoke [m k d] (get m k d))
-//(typefn $String invoke [k m d] (get m k d))
-
-
-
 // MISC
 
 (defn identity [a] a)
@@ -228,4 +223,16 @@ function(c,a){return #fs.hg.lisp().save('core', `
   (fn [& ys]
     (apply f xs ys)))
 
-`)}
+(defn complement [p]
+  (fn [& args] (not (apply p args))))
+
+
+// Interop
+
+(defn $scr [s & args]
+  ($call (-> $args ($get s) ($get 'call)) 'apply nil args))
+
+(defn $color [c s]
+  (str "\x60" c s "\x60"))
+
+`}})}
