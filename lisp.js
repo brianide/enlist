@@ -5,7 +5,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	// [+ 1 2] - Synonymous with the above
 	// {'name 'Foo 'age 42} - Hash-map
 	// "hello world" - String
-	// r"^.*$" - Regex (compiled at read-time)
+	// r"^.*$" - Regex (compiled at read-time); flags go after the r
 	// 'foo - Expands to (QUOTE foo)
 	// @foo - Expands to (DEREF foo)
 	// ^foo - Expands to (QUASIQUOTE foo)
@@ -34,6 +34,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	def = n => n != void 0,
 	len = s => s.length,
 	arr = Array.isArray,
+	obj = a => a.constructor == Object,
 	str = a => a instanceof String || typeof a == 'string',
 	
 	// Check for Clojure-ish truthiness
@@ -132,9 +133,12 @@ function(con, arg) { // i:"(-> $env keys prn)"
 			return spe[a[0]](ctx, ...a.slice(1));
 		
 		// Apply regular function
-		let e = a.map(i => eval_(i, ctx)), i = e.slice(1);
-		return def(e[0]) && def(e[0].call) ? e[0].call(0, ...i) // Execute an object's call member
-			: null[9]; // Spit out an error
+		let [e, ...i] = a.map(i => eval_(i, ctx));
+		
+		return def(e.call) ? e.call(0, ...i)
+		: str(e) && obj(i[0]) ? i[0][e]
+		: (obj(e) && str(i[0])) || (arr(e) && !isNaN(i[0])) ? e[i[0]]
+		: null[9];
 	},
 		
 	// Returns a printable description of the object. Needs work.
@@ -142,7 +146,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	    !def(a) ? 'nil'
 		: arr(a) ? `(${a.map(e => prn(e,p)).join(' ')})`
 		: str(a) ? (p ? a : `\"${a}\"`)
-		: a.constructor == Object
+		: obj(a)
 		  ? `{${Object.keys(a).map(k => [prn(k,p), prn(a[k],p)].join(' ')).join(' ')}}`
 		: a.constructor == RegExp
 		  ? `r\"${a.toString().slice(1, -1)}\"`
@@ -206,7 +210,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		
 		// Collection operations
 		'seq?': arr,
-		range:  (a, b)    => [...Array(b).keys()].slice(a),
+		range:  (a, b)    => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
 		//list:   (...a)    => a, 
 		cons:   (i, a)    => [i, ...a],
 		conj:   (a, ...i) => [...a, ...i],
@@ -273,22 +277,19 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		recur: (...a) => tag('R', a),
 		$ST: _ST,
 		$ctx: con,
-		$db: {
-			i:   q     => #db.i(q),
-			r:   q     => #db.r(q),
-			f:  (q, p) => #db.f(q, p).array(),
-			u:  (q, c) => #db.u(q, c),
-			us: (q, c) => #db.us(q, c)
-		}
+		$db: null
+//		$db: {
+//			i:   q     => #db.i(q),
+//			r:   q     => #db.r(q),
+//			f:  (q, p) => #db.f(q, p).array(),
+//			u:  (q, c) => #db.u(q, c),
+//			us: (q, c) => #db.us(q, c)
+//		}
 	};
 	cor.$env = cor;
 	
-	// For public use
-	delete cor.$db;
-	
 	let rep = (a, p) => {
 		cor['$args'] = a;
-		//eval_(read(p), cor);
 		eval_(['do', ...read_all(p)], cor);
 		let c = out.join('\n');
 		out.length = 0;
@@ -297,9 +298,6 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	
 	// Load core libs and evaluate from args
 	spe.load(cor, ['_core']);
-	
-	if(con.calling_script || con.is_scriptor)
-		return rep;
-	else
-		return rep(arg, arg.i);
+		
+	return con.calling_script || con.is_scriptor ? rep : rep(arg, arg.i);
 }

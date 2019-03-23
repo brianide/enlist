@@ -1,5 +1,3 @@
-function(c,a){return #db.u({type:'lisp_scr', name:'_core'},{$set:{body:`
-
 // SYSTEM //
 
 (defmacro defn [n b & fs] ^(def ~n (fn ~b ~@fs)))
@@ -7,6 +5,7 @@ function(c,a){return #db.u({type:'lisp_scr', name:'_core'},{$set:{body:`
 (defn swap! [a f & xs] (reset! a (apply f @a xs)))
 
 (defn boolean [a] (if a true false))
+(defn number [a] ($call $Number 'parseFloat a))
 
 (defn nil? [a] (if ($exact a false) false ($eq a nil)))
 (defn seq? [coll] ($call $Array 'isArray coll))
@@ -235,4 +234,7 @@ function(c,a){return #db.u({type:'lisp_scr', name:'_core'},{$set:{body:`
 (defn $color [c s]
   (str "\x60" c s "\x60"))
 
-`}})}
+//`[0-9A-Za-z](?!:.?`)([^`\n]+)`/g
+
+(defn $uncolor [s]
+  ($call s 'replace rg"\x60[0-9A-Za-z](?!:.?\x60)([^\x60\n]+)\x60" '$1))
