@@ -22,7 +22,7 @@
 
 ;;; File stuff
 
-(def template
+(def boilerplate
   "function(c,a){
     let f = {type:'{{type}}', name:'{{name}}'},
         b = {{append}} ? #db.f(f).first().body : '';
@@ -40,15 +40,15 @@
 (defn splits [limit s]
   "Produces a sequence of start/end index pairs that divide s into substrings
   containing no more than limit non-whitespace characters."
-  (let [sp (->> (seq s)
+  (let [sp (->> s
                 (map-indexed vector)
                 (remove #(Character/isWhitespace (% 1)))
                 (partition-all limit)
                 (map ffirst)
                 (partition 2 1)
                 vec)]
-    (if (= (count s) (last (last sp)))
-        sp
+    (if (empty? sp)
+        [(list 0 (count s))]
         (conj sp (list (last (last sp)) (count s))))))
 
 (defn segments [limit s]
@@ -63,32 +63,35 @@
 
 (defn send-upload-commands! [file]
   (send-line! window (str "#up " file))
-  (wait 2)
+  (wait 3)
   (send-line! window file)
   (wait 3)
   (send-line! window (str "#up " file " delete"))
-  (wait 1))
+  (wait 2))
 
 (defn main [source remote entry-type char-limit]
   (let [content (slurp source)
         script-name (random-name)
         file-name (str script-name ".js")
         bp-size (non-whitespace-count
-                  (apply-template template {:type entry-type
-                                            :name remote
-                                            :body ""
-                                            :append "false"}))
-        limit (- char-limit bp-size)
-        segs (map-indexed vector (segments limit content))]
-    (printf "Uploading %s to %s in %d segments" source remote (count segs))
+                  (apply-template boilerplate {:type entry-type
+                                               :name remote
+                                               :body ""
+                                               :append "false"}))
+        limit (- (Integer/parseInt char-limit) bp-size)
+        segs (map-indexed vector (segments limit content))
+        msg (format "Uploading %s to %s in %d segments" source remote (count segs))]
+    (println msg)
+    (send-line! window (str "# " msg))
     (run! (fn [[i s]]
             (spit file-name
-                  (apply-template template {:type entry-type
-                                            :name remote
-                                            :body s
-                                            :append (str (> i 0))}))
+                  (apply-template boilerplate {:type entry-type
+                                               :name remote
+                                               :body s
+                                               :append (str (> i 0))}))
             (send-upload-commands! script-name))
           segs)
-    (io/delete-file file-name)))
+    (io/delete-file file-name))
+    (shutdown-agents))
 
 (apply main *command-line-args*)

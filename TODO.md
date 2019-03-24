@@ -10,5 +10,5 @@
 * Modify `sort` to accept a comparator
 * Add `sort-by`
 * Add `partition`
-* Add `re-matches` and friends
 * Add `juxt`
+* Potentially split up `_core` a bit, and make the loading of non-essential functions optional (but otherwise automatic); performance difference may not be worth added char weight

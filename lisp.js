@@ -148,8 +148,8 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		: str(a) ? (p ? a : `\"${a}\"`)
 		: obj(a)
 		  ? `{${Object.keys(a).map(k => [prn(k,p), prn(a[k],p)].join(' ')).join(' ')}}`
-		: a.constructor == RegExp
-		  ? `r\"${a.toString().slice(1, -1)}\"`
+//		: a.constructor == RegExp
+//		  ? `r\"${a.toString().slice(1, -1)}\"`
 		: def(a.valueOf)
 		  ? a.valueOf()
 		: a,
