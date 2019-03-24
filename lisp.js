@@ -197,7 +197,9 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		quasiquote: (ctx, a) => qq(ctx, a)[0],
 		macroexpand: mexp,
 		'eval': (ctx, a) => eval_(eval_(a, ctx), ctx),
-		load: (ctx, n) => n.forEach(p => eval_(['do', ...read_all(lib[p])], cor))
+		load: (ctx, n) => arr(n)
+		                  ? n.map(p => spe.load(cor, p))
+		                  : eval_(['do', ...read_all(lib[n])], cor)
 	},
 	
 	// Core context
@@ -208,10 +210,11 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		
 		// Collection operations
 		'seq?': arr,
-		range:  (a, b)    => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
-		list:   (...a)    => a, 
-		cons:   (i, a)    => [i, ...a],
-		concat: (...a)    => [].concat(...a),
+		'push!': (a, ...b) => (a.push(...b), a),  
+		range:   (a, b) => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
+		list:    (...a) => a, 
+		cons:    (i, a) => [i, ...a],
+		concat:  (...a) => [].concat(...a),
 		apply: apply,
 		count: len,
 		
@@ -287,7 +290,9 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	let rep = (a, p) => {
 		cor['$args'] = a;
 		eval_(['do', ...read_all(p)], cor);
-		let c = out.join('\n');
+		let c = {ok:true, msg:out.join('\n')}
+		if(arg.time)
+			c.time = new Date() - _ST;
 		out.length = 0;
 		return c;
 	};

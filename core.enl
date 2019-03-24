@@ -14,6 +14,7 @@
 (defn true? [a] ($exact a true))
 (defn false? [a] ($exact a false))
 (defn map? [a] (and a ($exact $Object ('constructor a))))
+(defn map? [a] (and a ($exact $Set ('constructor a))))
 (defn function? [a] (and a ($exact $Function ('constructor a))))
 (defn regex? [a] (and a ($exact $RegExp ('constructor a))))
 
@@ -74,20 +75,8 @@
     ($get c 'length)
     (count (keys c))))
 
-(defn seq [c]
-  (if (> (count c) 0)
-    (cond
-      (seq? c) c
-      (map? c) (map (fn [k] [k (get c k)]) (keys c))
-      (string? c) ($call c 'split ""))))
-
 (defn juxt [& fs]
   (fn [& xs] (map (fn [f] (apply f xs)) fs)))
-
-(defn conj [a & bs]
-  (cond
-    (seq? a) (concat a bs)
-    true     ($call $Object 'assign a bs)))
 
 
 
@@ -125,6 +114,7 @@
 (defn vals [m] ($call $Object 'values m))
 (defn get [m k d] (or ($get m k) d))
 (defn contains? [m k] ($in k m))
+(defn merge [m n] ($call $Object 'assign {} m n))
 
 (defn assoc [m & kvs]
   (loop [m ($call $Object 'assign {} m)
@@ -144,9 +134,34 @@
           (recur m (rest ks)))
         m)))
 
+(defn select-keys [m ks]
+  (->> (keys m)
+       (remove (fn [x] ($call ks 'includes x)))
+       (cons m)
+       (apply dissoc)))
+
 (defn update [m k f & xs]
   (assoc m k (apply f (cons (get m k) xs))))
-        
+
+(defn seq [c]
+  (if (> (count c) 0)
+    (cond
+      (seq? c)    c
+      (map? c)    (('entries $Object) c)
+      (string? c) ($call c 'split ""))))
+
+(defn conj [a & bs]
+  (cond
+    (nil? a) bs
+    (seq? a) (concat a bs)
+    (map? a) (loop [a (merge {} a)
+                    n (first bs)
+                    bs (rest bs)]
+               (cond
+                 (map? n) ($call $Object 'assign a n)
+                 (seq? n) ($set a (first n) (second n)))
+               (if (empty? bs) a (recur a (first bs) (rest bs))))))
+
 
 
 // LOGIC //
