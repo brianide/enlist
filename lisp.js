@@ -105,10 +105,16 @@ function(con, arg) { // i:"(-> $env keys prn)"
 
 	// Expand a macro
 	mexp = (ctx, a) => {
-		while(arr(a) && len(a) && def(ctx[a[0]]) && ctx[a[0]].__M)
+		while(arr(a) && len(a) && a[0] in ctx && ctx[a[0]].__M)
 			a = ctx[a[0]](...a.slice(1));
 		return a;
 	},
+	
+	apply = (e, i) =>
+		def(e.call) ? e.call(0, ...i)
+		: str(e) ? i[0][e]
+		: (obj(e) && str(i[0])) || (arr(e) && !isNaN(i[0])) ? e[i[0]]
+		: null[9],
 
 	// Evaluate an expression	
 	eval_ = (a, ctx) => {
@@ -121,7 +127,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 			return !def(a)
 			  ? void 0
 			: str(a)
-			  ? ctx[a]
+			  ? a in ctx ? ctx[a] : null[a]
 			  : a;
 		
 		// Return an empty list
@@ -134,11 +140,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		
 		// Apply regular function
 		let [e, ...i] = a.map(i => eval_(i, ctx));
-		
-		return def(e.call) ? e.call(0, ...i)
-		: str(e) && obj(i[0]) ? i[0][e]
-		: (obj(e) && str(i[0])) || (arr(e) && !isNaN(i[0])) ? e[i[0]]
-		: null[9];
+		return apply(e, i);
 	},
 		
 	// Returns a printable description of the object. Needs work.
@@ -194,11 +196,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		quote: (_, a) => a,
 		quasiquote: (ctx, a) => qq(ctx, a)[0],
 		macroexpand: mexp,
-		'eval': (ctx, a) => eval_(a, cor),
-		'while': (ctx, p, ...f) => {
-			while(eval_(p, ctx))
-				_do(ctx, ...f);
-		},
+		'eval': (ctx, a) => eval_(eval_(a, ctx), ctx),
 		load: (ctx, n) => n.forEach(p => eval_(['do', ...read_all(lib[p])], cor))
 	},
 	
@@ -211,11 +209,10 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		// Collection operations
 		'seq?': arr,
 		range:  (a, b)    => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
-		//list:   (...a)    => a, 
+		list:   (...a)    => a, 
 		cons:   (i, a)    => [i, ...a],
-		conj:   (a, ...i) => [...a, ...i],
 		concat: (...a)    => [].concat(...a),
-		apply:  (f, ...a) => f(...[].concat(...a)),
+		apply: apply,
 		count: len,
 		
 		// Hashmap functions
@@ -241,7 +238,6 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		// I/O
 		prn: a => (out.push(prn(a,0)), void 0),
 		print: a => (out.push(prn(a)), void 0),
-		//log: a => #D(prn(a)),
 		'read-string': read,
 		'read-all': read_all,
 		

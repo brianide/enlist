@@ -2,21 +2,20 @@
 
 (defmacro defn [n b & fs] ^(def ~n (fn ~b ~@fs)))
 
-(defn swap! [a f & xs] (reset! a (apply f @a xs)))
+(defn swap! [a f & xs] (reset! a (apply f (cons @a xs))))
 
 (defn boolean [a] (if a true false))
 (defn number [a] ($call $Number 'parseFloat a))
 
 (defn nil? [a] (if ($exact a false) false ($eq a nil)))
-(defn seq? [coll] ($call $Array 'isArray coll))
-(defn string? [a] (and a ($exact $String ($get a 'constructor))))
-(defn number? [a] (and a ($exact $Number ($get a 'constructor))))
-(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ($get a 'constructor))))
+(defn string? [a] (and a ($exact $String ('constructor a))))
+(defn number? [a] (and a ($exact $Number ('constructor a))))
+(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ('constructor))))
 (defn true? [a] ($exact a true))
 (defn false? [a] ($exact a false))
-(defn map? [a] (and a ($exact $Object ($get a 'constructor))))
-(defn function? [a] (and a ($exact $Function ($get a 'constructor))))
-(defn regex? [a] (and a ($exact $RegExp ($get a 'constructor))))
+(defn map? [a] (and a ($exact $Object ('constructor a))))
+(defn function? [a] (and a ($exact $Function ('constructor a))))
+(defn regex? [a] (and a ($exact $RegExp ('constructor a))))
 
 (def gensym
   (let [cnt (atom 0)]
@@ -29,17 +28,17 @@
 
 (defn = [a b]
   (cond
-    (string? a)   (if (string? b)
+    (string? a) (if (string? b)
                     (== a b))
-    (nil? a)      (nil? b)
-    (list? a)     (and
-                    (list? b)
-                    ($exact (count a) (count b))
-                    (every? (fn [x] (= (nth x a) (nth x b))) (range 0 (count a))))
-    (hash-map? a) (and
-                    (= (sort (keys a)) (sort (keys b)))
-                    (every? (fn [x] (= (get a x) (get b x))) (keys a)))
-    true          ($exact a b)))
+    (nil? a)    (nil? b)
+    (seq? a)    (and
+                  (seq? b)
+                  ($exact (count a) (count b))
+                  (every? (fn [x] (= (nth x a) (nth x b))) (range 0 (count a))))
+    (map? a)    (and
+                  (= (sort (keys a)) (sort (keys b)))
+                  (every? (fn [x] (= (get a x) (get b x))) (keys a)))
+    true        ($exact a b)))
 
 
 
@@ -61,12 +60,11 @@
 (defn last [coll] (nth (dec (count coll)) coll))
 (defn take [n coll] ($call coll 'slice 0 n))
 (defn drop [n coll] ($call coll 'slice n))
-(defn rest [coll] (drop 1 coll))
+(defn rest [coll] ($call coll 'slice 1))
 (defn find [p coll] ($call coll 'find (fn [x] (p x))))
 (defn split-at [n coll] (list (take n coll) (drop n coll)))
 
 // Other
-(defn list [& xs] xs)
 (defn empty? [coll] ($exact 0 (count coll)))
 (defn sort [coll] ($call ($call coll 'slice) 'sort))
 (defn reverse [coll] ($call ($call coll 'slice) 'reverse))
@@ -82,6 +80,14 @@
       (seq? c) c
       (map? c) (map (fn [k] [k (get c k)]) (keys c))
       (string? c) ($call c 'split ""))))
+
+(defn juxt [& fs]
+  (fn [& xs] (map (fn [f] (apply f xs)) fs)))
+
+(defn conj [a & bs]
+  (cond
+    (seq? a) (concat a bs)
+    true     ($call $Object 'assign a bs)))
 
 
 
@@ -120,22 +126,26 @@
 (defn get [m k d] (or ($get m k) d))
 (defn contains? [m k] ($in k m))
 
-(defn assoc [m k v & kvs]
-  (let [m ($call $Object 'assign {} m)]
-    ($set m k v)
-    (if (empty? kvs)
-      m
-      (apply assoc m (first kvs) (second kvs) (drop 2 kvs)))))
+(defn assoc [m & kvs]
+  (loop [m ($call $Object 'assign {} m)
+         kvs kvs]
+    (if (not-empty kvs)
+        (do 
+          ($set m (first kvs) (second kvs))
+          (recur m (drop 2 kvs)))
+        m)))
 
-(defn dissoc [m k v & kvs]
-  (let [m ($call $Object 'assign {} m)]
-    ($delete m k)
-    (if (empty? kvs)
-      m
-      (apply dissoc m (first kvs) (second kvs) (drop 2 kvs)))))
+(defn dissoc [m & ks]
+  (loop [m ($call $Object 'assign {} m)
+         ks ks]
+    (if (not-empty ks)
+        (do 
+          ($delete m (first ks))
+          (recur m (rest ks)))
+        m)))
 
 (defn update [m k f & xs]
-  (assoc m k (apply f (get m k) xs)))
+  (assoc m k (apply f (cons (get m k) xs))))
         
 
 
@@ -145,6 +155,8 @@
   (fn [& args] (not (apply p args))))
 
 (def not= (complement =))
+
+(def not-empty (complement empty?))
 
 (defmacro or [& xs]
   (if (empty? xs)
@@ -216,11 +228,11 @@
 
 (defn comp [& fs]
   (fn [& xs]
-    (reduce-right (fn [r x] (apply x r)) xs fs)))
+    (reduce-right (fn [r x] (x r)) xs fs)))
 
 (defn partial [f & xs]
   (fn [& ys]
-    (apply f xs ys)))
+    (apply f (concat xs ys))))
 
 (defn re-groups [reg s]
   (if (not ($get reg 'global))

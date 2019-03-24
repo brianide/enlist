@@ -5,10 +5,12 @@
 * Add `try`/`catch` to supplement `throw`
 * Fix `prn` for RegExp
 * Figure out a way to do safe database access, so that a filesystem can be implemented in a separate library and not the interpreter; maybe run core libraries in their own subcontext
+* Consider bringing back groups (special arrays which evaluate to standard arrays containing their evaluated members)
 
 ## Core
 * Modify `sort` to accept a comparator
+* Scrutinize usages of `concat`
 * Add `sort-by`
 * Add `partition`
-* Add `juxt`
+* Add `condp`
 * Potentially split up `_core` a bit, and make the loading of non-essential functions optional (but otherwise automatic); performance difference may not be worth added char weight
