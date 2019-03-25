@@ -10,7 +10,7 @@
 (defn nil? [a] (if ($exact a false) false ($eq a nil)))
 (defn string? [a] (and a ($exact $String ('constructor a))))
 (defn number? [a] (and a ($exact $Number ('constructor a))))
-(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ('constructor))))
+(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ('constructor a))))
 (defn true? [a] ($exact a true))
 (defn false? [a] ($exact a false))
 (defn map? [a] (and a ($exact $Object ('constructor a))))
@@ -55,10 +55,17 @@
 (defn some? [p coll] ($call coll 'some (fn [x] (p x))))
 
 // Elements
+(defn count [c]
+  (if (seq? c)
+    ($get c 'length)
+    (count (keys c))))
+
 (defn nth [n coll] ($get coll n))
 (defn first [coll] (nth 0 coll))
+(defn ffirst [coll] (first (first coll)))
 (defn second [coll] (nth 1 coll))
 (defn last [coll] (nth (dec (count coll)) coll))
+(defn butlast [coll] ($call coll 'slice 0 (dec (count coll))))
 (defn take [n coll] ($call coll 'slice 0 n))
 (defn drop [n coll] ($call coll 'slice n))
 (defn rest [coll] ($call coll 'slice 1))
@@ -67,13 +74,30 @@
 
 // Other
 (defn empty? [coll] ($exact 0 (count coll)))
-(defn sort [coll] ($call ($call coll 'slice) 'sort))
 (defn reverse [coll] ($call ($call coll 'slice) 'reverse))
 
-(defn count [c]
-  (if (seq? c)
-    ($get c 'length)
-    (count (keys c))))
+(defn comparator [op]
+  (fn [a b]
+    (let [left (op a b)]
+      (cond
+        (number? left) left
+        (boolean? left) (cond left -1 (op b a) 1 true 0)
+        true (throw "bad compare function")))))
+        
+(defn sort [& as]
+  (condp = (count as)
+    1 ($call ($call (first as) 'slice) 'sort)
+    2 ($call ($call (second as) 'slice) 'sort (comparator (first as)))
+    (throw "bad arity")))
+
+(defn partition [n coll]
+  (loop [acc ()
+         coll coll]
+    (if (empty? coll)
+        acc
+        (do
+          (push! acc ($call coll 'slice 0 n))
+          (recur acc (drop n coll))))))
 
 (defn juxt [& fs]
   (fn [& xs] (map (fn [f] (apply f xs)) fs)))
@@ -101,7 +125,7 @@
 (defn inc [n] (+ n 1))
 (defn dec [n] (- n 1))
 
-(defn str [& s] (if s ($call s 'join) ""))
+(defn str [& s] (if s ($call s 'join "") ""))
 
 (def ->json ($get $JSON 'stringify))
 (def <-json ($get $JSON 'parse))
@@ -212,12 +236,18 @@
        ~(second ps)
        (cond ~@(drop 2 ps)))))
 
-(defmacro time [exp]
-  ^(let [start ($new $Date)
-         res ~exp
-         end ($new $Date)]
-     (prn (str "Time: " (- end start) " msecs"))
-     res))
+(defmacro condp [p exp & ts]
+  (let [gpred (gensym "pred__")
+        gexpr (gensym "expr__")
+        init (if (odd? (count ts)) (last ts) nil)
+        ts (if init (butlast ts) ts)
+        ts (partition 2 ts)]
+    ^(let [~gpred ~p ~gexpr ~exp]
+       ~(reduce-right
+          (fn [a v]
+            (conj ^(if (~gpred ~(v 0) ~gexpr) ~(v 1)) a))
+          init
+          ts))))
 
 (defmacro -> [v & fs]
   (if (empty? fs)
@@ -237,6 +267,7 @@
   ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
 
 
+
 // MISC
 
 (defn identity [a] a)
@@ -252,7 +283,7 @@
 (defn re-groups [reg s]
   (if (not ($get reg 'global))
       ($call reg 'exec s)
-      (loop [acc '()]
+      (loop [acc ()]
         (if-let [m ($call reg 'exec s)]
           (do
             ($call acc 'push m)

@@ -186,10 +186,17 @@ function(con, arg) { // i:"(-> $env keys prn)"
 			}
 			return v;
 		},
-		fn: (ctx, b, ...f) => (...a) => {
-			let stx = Object.create(ctx);
-			b.some((j, i) => j == '&' ? stx[b[i + 1]] = a.slice(i) : (stx[j] = a[i], 0));
-			return _do(stx, ...f);
+		fn: (ctx, b, ...f) => {
+			let fn = (...a) => {
+				let stx = Object.create(ctx);
+				b.some((j, i) => j == '&' ? stx[b[i + 1]] = a.slice(i) : (stx[j] = a[i], 0));
+				return _do(stx, ...f);
+			};
+			
+			// Attach arity/variadic metadata			
+			fn.__var = b.some((j, i) => (fn.__arity = j == '&' ? i : -1) + 1);
+			fn.__var || (fn.__arity = len(b));
+			return fn;
 		},
 		defmacro: (ctx, k, b, ...f) => spe.def(ctx, k, tag('M', spe.fn(ctx, b, ...f))),
 		'if': (ctx, c, t, f) => tru(eval_(c, ctx)) ? eval_(t, ctx) : def(f) ? eval_(f, ctx) : void 0,
@@ -270,13 +277,12 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		$get:    (o, n)       => o[n],
 		$set:    (o, n, v)    => o[n] = v,
 		$call:   (o, n, ...a) => o[n](...a),
-		$throw:   m           => {throw m},
+		throw:   m           => {throw m},
 		
 		// Misc
 		recur: (...a) => tag('R', a),
 		$ST: _ST,
 		$ctx: con,
-		$db: null
 //		$db: {
 //			i:   q     => #db.i(q),
 //			r:   q     => #db.r(q),
@@ -290,9 +296,10 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	let rep = (a, p) => {
 		cor['$args'] = a;
 		eval_(['do', ...read_all(p)], cor);
-		let c = {ok:true, msg:out.join('\n')}
-		if(arg.time)
-			c.time = new Date() - _ST;
+//		let c = {ok:true, msg:out.join('\n')}
+//		if(arg.time)
+//			c.time = new Date() - _ST;
+		let c = out.join('\n');
 		out.length = 0;
 		return c;
 	};
