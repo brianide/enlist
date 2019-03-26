@@ -1,4 +1,4 @@
-function(con, arg) { // i:"("
+function(con, arg) { // i:"(-> $env keys sort print)"
 	
 	// SYNTAX
 	// (+ 1 2) - Sequence; generally denotes a method invocation
@@ -286,10 +286,10 @@ function(con, arg) { // i:"("
 	};
 	cor.$env = cor;
 	
-	let rep = (a, p) => {
-		cor['$args'] = a;
+	let rep = (p, a = {}) => {
+		cor.$args = a;
 		
-		let c = {ok:true};
+		let c = {ok:true}, s = new Date();
 		try {
 			eval_(['do', ...read_all(p)], cor);
 			c.msg = out.join('\n');
@@ -299,14 +299,16 @@ function(con, arg) { // i:"("
 			c.msg = e.message || e;
 		}
 		
-		if(arg.time)
-			c.time = new Date() - _ST;
+		if(a.time)
+			c.time = new Date() - s;
 		out.length = 0;
+		
 		return c;
 	};
+	rep.env = cor;
 	
 	// Load core libs and evaluate from args
 	spe.load(cor, ['_core']);
-		
-	return con.calling_script || con.is_scriptor ? rep : rep(arg, arg.i);
+	
+	return arg ? rep(arg.i, arg) : rep;
 }
