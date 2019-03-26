@@ -1,4 +1,4 @@
-function(con, arg) { // i:"(-> $env keys prn)"
+function(con, arg) { // i:"("
 	
 	// SYNTAX
 	// (+ 1 2) - Sequence; generally denotes a method invocation
@@ -186,17 +186,10 @@ function(con, arg) { // i:"(-> $env keys prn)"
 			}
 			return v;
 		},
-		fn: (ctx, b, ...f) => {
-			let fn = (...a) => {
-				let stx = Object.create(ctx);
-				b.some((j, i) => j == '&' ? stx[b[i + 1]] = a.slice(i) : (stx[j] = a[i], 0));
-				return _do(stx, ...f);
-			};
-			
-			// Attach arity/variadic metadata			
-			fn.__var = b.some((j, i) => (fn.__arity = j == '&' ? i : -1) + 1);
-			fn.__var || (fn.__arity = len(b));
-			return fn;
+		fn: (ctx, b, ...f) => (...a) => {
+			let stx = Object.create(ctx);
+			b.some((j, i) => j == '&' ? stx[b[i + 1]] = a.slice(i) : (stx[j] = a[i], 0));
+			return _do(stx, ...f);
 		},
 		defmacro: (ctx, k, b, ...f) => spe.def(ctx, k, tag('M', spe.fn(ctx, b, ...f))),
 		'if': (ctx, c, t, f) => tru(eval_(c, ctx)) ? eval_(t, ctx) : def(f) ? eval_(f, ctx) : void 0,
@@ -205,7 +198,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		macroexpand: mexp,
 		'eval': (ctx, a) => eval_(eval_(a, ctx), ctx),
 		load: (ctx, n) => arr(n)
-		                  ? n.map(p => spe.load(cor, p))
+		                  ? n.map(p => spe.load(0, p))
 		                  : eval_(['do', ...read_all(lib[n])], cor)
 	},
 	
@@ -223,7 +216,6 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		cons:    (i, a) => [i, ...a],
 		concat:  (...a) => [].concat(...a),
 		apply: apply,
-		count: len,
 		
 		// Hashmap functions
 		'hash-map': (...a)        => bind(a),
@@ -233,6 +225,7 @@ function(con, arg) { // i:"(-> $env keys prn)"
 		'-':    (a, b) => a - b,
 		'*':    (a, b) => a * b,
 		'/':    (a, b) => a / b,
+		number: a => +a,
 		mod:    (a, b) => a % b,
 		$eq:    (a, b) => a == b,
 		$exact: (a, b) => a === b,
@@ -296,10 +289,9 @@ function(con, arg) { // i:"(-> $env keys prn)"
 	let rep = (a, p) => {
 		cor['$args'] = a;
 		eval_(['do', ...read_all(p)], cor);
-//		let c = {ok:true, msg:out.join('\n')}
-//		if(arg.time)
-//			c.time = new Date() - _ST;
-		let c = out.join('\n');
+		let c = {ok:true, msg:out.join('\n')}
+		if(arg.time)
+			c.time = new Date() - _ST;
 		out.length = 0;
 		return c;
 	};

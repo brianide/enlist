@@ -17,6 +17,7 @@
   (sh "xdotool" "key" "--window" window k))
 
 (defn send-line! [window text]
+  (send-key! window "Escape")
   (sh "xdotool" "type" "--window" window text)
   (send-key! window "Return"))
 
@@ -63,11 +64,13 @@
 
 (defn send-upload-commands! [file]
   (send-line! window (str "#up " file))
-  (wait 3)
+  (wait 1)
   (send-line! window file)
-  (wait 3)
-  (send-line! window (str "#up " file " delete"))
-  (wait 2))
+  (wait 3))
+
+(defn cleanup! [script-name file-name]
+  (send-line! window (str "#up " script-name " delete"))
+  (io/delete-file file-name :silent))
 
 (defn main [source remote entry-type char-limit]
   (let [content (slurp source)
@@ -79,10 +82,8 @@
                                                :body ""
                                                :append "false"}))
         limit (- (Integer/parseInt char-limit) bp-size)
-        segs (map-indexed vector (segments limit content))
-        msg (format "Uploading %s to %s in %d segments" source remote (count segs))]
-    (println msg)
-    (send-line! window (str "# " msg))
+        segs (map-indexed vector (segments limit content))]
+    (printf "Uploading %s to %s in %d segments\n" source remote (count segs))
     (run! (fn [[i s]]
             (spit file-name
                   (apply-template boilerplate {:type entry-type
@@ -91,7 +92,7 @@
                                                :append (str (> i 0))}))
             (send-upload-commands! script-name))
           segs)
-    (io/delete-file file-name))
-    (shutdown-agents))
+    (cleanup! script-name file-name))
+  (shutdown-agents))
 
 (apply main *command-line-args*)

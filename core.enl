@@ -1,22 +1,65 @@
-// SYSTEM //
-
 (defmacro defn [n b & fs] ^(def ~n (fn ~b ~@fs)))
 
 (defn swap! [a f & xs] (reset! a (apply f (cons @a xs))))
 
-(defn boolean [a] (if a true false))
-(defn number [a] ($call $Number 'parseFloat a))
+(defn complement [p]
+  (fn [& args] (not (apply p args))))
+  
+(defn identity [a] a)
 
-(defn nil? [a] (if ($exact a false) false ($eq a nil)))
-(defn string? [a] (and a ($exact $String ('constructor a))))
-(defn number? [a] (and a ($exact $Number ('constructor a))))
-(defn boolean? [a] (and (not (nil? a)) ($exact $Boolean ('constructor a))))
+(defn partial [f & xs]
+  (fn [& ys]
+    (apply f (concat xs ys))))
+
+(defn count [c]
+  (if (nil? c) 0
+    (if (map? c) (count (keys c))
+      ($get c 'length))))
+
+(defn empty? [coll] ($exact 0 (count coll)))
+
+(defn boolean [a] (if a true false))
 (defn true? [a] ($exact a true))
 (defn false? [a] ($exact a false))
-(defn map? [a] (and a ($exact $Object ('constructor a))))
-(defn map? [a] (and a ($exact $Set ('constructor a))))
-(defn function? [a] (and a ($exact $Function ('constructor a))))
-(defn regex? [a] (and a ($exact $RegExp ('constructor a))))
+(defn nil? [a] (if ($exact a false) false ($eq a nil)))
+(def some? (complement nil?))
+
+(defn nth [n coll] (if (some? coll) ($get coll n)))
+(defn first [coll] (nth 0 coll))
+(defn ffirst [coll] (first (first coll)))
+(defn second [coll] (nth 1 coll))
+(defn last [coll] (nth (dec (count coll)) coll))
+(defn butlast [coll] (if (some? coll) ($call coll 'slice 0 (dec (count coll)))))
+(defn take [n coll] (if (some? coll) ($call coll 'slice 0 n)))
+(defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
+(def rest (partial drop 1))      
+
+(defmacro or [& xs]
+  (if (empty? xs)
+    nil
+    (if ($exact 1 (count xs))
+      (first xs)
+      (let [cvar (gensym)]
+        ^(let [~cvar ~(first xs)]
+           (if ~cvar ~cvar (or ~@(rest xs))))))))
+
+(defmacro and [& xs]
+  (if (empty? xs)
+    nil
+    (if ($exact 1 (count xs))
+      (first xs)
+      (let [cvar (gensym)]
+        ^(let [~cvar ~(first xs)]
+           (if ~cvar (and ~@(rest xs)) ~cvar))))))
+
+(defn has-constructor? [con a] (if a ($exact con ('constructor a)) false))
+(def string? (partial has-constructor? $String))
+(def number? (partial has-constructor? $Number))
+(def map? (partial has-constructor? $Object))
+(def set? (partial has-constructor? $Set))
+(def function? (partial has-constructor? $Function))
+(def regex? (partial has-constructor? $RegExp))
+(defn boolean? [a] (if (not (nil? a)) ($exact $Boolean ('constructor a)) false))
 
 (def gensym
   (let [cnt (atom 0)]
@@ -41,40 +84,16 @@
                   (every? (fn [x] (= (get a x) (get b x))) (keys a)))
     true        ($exact a b)))
 
-
-
-// SEQUENCES //
-
-// Higher Order Functions
 (defn map [f coll] ($call coll 'map (fn [x] (f x))))
+(defn map-indexed [f coll] ($call coll 'map (fn [x i] (f i x))))
+(defn run! [f coll] ($call coll 'forEach (fn [x] (f x))))
 (defn filter [p coll] ($call coll 'filter (fn [x] (p x))))
 (defn remove [p coll] (filter (complement p) coll))
-(defn reduce [f i coll] ($call coll 'reduce (fn [a v] (f a v)) i))
-(defn reduce-right [f i coll] ($call coll 'reduceRight (fn [a v] (f a v)) i))
 (defn every? [p coll] ($call coll 'every (fn [x] (p x))))
-(defn some? [p coll] ($call coll 'some (fn [x] (p x))))
-
-// Elements
-(defn count [c]
-  (if (seq? c)
-    ($get c 'length)
-    (count (keys c))))
-
-(defn nth [n coll] ($get coll n))
-(defn first [coll] (nth 0 coll))
-(defn ffirst [coll] (first (first coll)))
-(defn second [coll] (nth 1 coll))
-(defn last [coll] (nth (dec (count coll)) coll))
-(defn butlast [coll] ($call coll 'slice 0 (dec (count coll))))
-(defn take [n coll] ($call coll 'slice 0 n))
-(defn drop [n coll] ($call coll 'slice n))
-(defn rest [coll] ($call coll 'slice 1))
-(defn find [p coll] ($call coll 'find (fn [x] (p x))))
+(defn some [p coll] ($call coll 'some (fn [x] (p x))))
+(defn find [p coll] (if (some? coll) ($call coll 'find (fn [x] (p x)))))
 (defn split-at [n coll] (list (take n coll) (drop n coll)))
-
-// Other
-(defn empty? [coll] ($exact 0 (count coll)))
-(defn reverse [coll] ($call ($call coll 'slice) 'reverse))
+(defn reverse [coll] (if (some? coll) ($call ($call coll 'slice) 'reverse)))
 
 (defn comparator [op]
   (fn [a b]
@@ -83,12 +102,15 @@
         (number? left) left
         (boolean? left) (cond left -1 (op b a) 1 true 0)
         true (throw "bad compare function")))))
-        
+
 (defn sort [& as]
   (condp = (count as)
     1 ($call ($call (first as) 'slice) 'sort)
     2 ($call ($call (second as) 'slice) 'sort (comparator (first as)))
     (throw "bad arity")))
+
+(defn reduce [f i coll] ($call coll 'reduce (fn [a v] (f a v)) i))
+(defn reduce-right [f i coll] ($call coll 'reduceRight (fn [a v] (f a v)) i))
 
 (defn partition [n coll]
   (loop [acc ()
@@ -101,15 +123,6 @@
 
 (defn juxt [& fs]
   (fn [& xs] (map (fn [f] (apply f xs)) fs)))
-
-
-
-// MATH //
-
-//(defn + [& ns] (reduce $add 0 ns))
-//(defn - [n & ns] (if (empty? ns) ($sub 0 n) (reduce $sub n ns)))
-//(defn * [& ns] (reduce $mul 1 ns))
-//(defn / [n & ns] (if (empty? ns) ($div 1 n) (reduce $div n ns)))
 
 (def max ($get $Math 'max))
 (def min ($get $Math 'min))
@@ -129,10 +142,6 @@
 
 (def ->json ($get $JSON 'stringify))
 (def <-json ($get $JSON 'parse))
-
-
-
-// HASH-MAPS //
 
 (defn keys [m] ($call $Object 'keys m))
 (defn vals [m] ($call $Object 'values m))
@@ -186,43 +195,12 @@
                  (seq? n) ($set a (first n) (second n)))
                (if (empty? bs) a (recur a (first bs) (rest bs))))))
 
-
-
-// LOGIC //
-
-(defn complement [p]
-  (fn [& args] (not (apply p args))))
-
 (def not= (complement =))
-
 (def not-empty (complement empty?))
-
-(defmacro or [& xs]
-  (if (empty? xs)
-    nil
-    (if ($exact 1 (count xs))
-      (first xs)
-      (let [cvar (gensym)]
-        ^(let [~cvar ~(first xs)]
-           (if ~cvar ~cvar (or ~@(rest xs))))))))
-
-(defmacro and [& xs]
-  (if (empty? xs)
-    nil
-    (if ($exact 1 (count xs))
-      (first xs)
-      (let [cvar (gensym)]
-        ^(let [~cvar ~(first xs)]
-           (if ~cvar (and ~@(rest xs)) ~cvar))))))
-
 (def > $gt)
 (def < $lt)
 (defn >= [a b] (or (> a b) (= a b)))
 (defn <= [a b] (or (< a b) (= a b)))
-
-
-
-// MACROS //
 
 (defmacro if-let [b t f] ^(let ~b (if ~(first b) ~t ~f)))
 (defmacro when [p & fs] ^(if ~p (do ~@fs)))
@@ -232,9 +210,7 @@
 (defmacro cond [& ps]
   (if (empty? ps)
     nil
-    ^(if ~(first ps)
-       ~(second ps)
-       (cond ~@(drop 2 ps)))))
+    ^(if ~(first ps) ~(second ps) (cond ~@(drop 2 ps)))))
 
 (defmacro condp [p exp & ts]
   (let [gpred (gensym "pred__")
@@ -266,19 +242,9 @@
 (defmacro as-> [v n & fs]
   ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
 
-
-
-// MISC
-
-(defn identity [a] a)
-
 (defn comp [& fs]
   (fn [& xs]
     (reduce-right (fn [r x] (x r)) xs fs)))
-
-(defn partial [f & xs]
-  (fn [& ys]
-    (apply f (concat xs ys))))
 
 (defn re-groups [reg s]
   (if (not ($get reg 'global))
@@ -294,10 +260,6 @@
   (if ($get reg 'global)
     (map first (re-groups reg s))
     (first (re-groups reg s))))
-
-
-
-// Interop
 
 (defn $scr [s & args]
   ($call (-> $args ($get s) ($get 'call)) 'apply nil args))
