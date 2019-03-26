@@ -90,7 +90,7 @@ function(con, arg) { // i:"("
 				if(m == end)
 					break;
 				else
-					throw m != eof ? 'unmatched ' + m : 'unexpected EOF';
+					throw m != eof ? 'Unmatched ' + m : 'Unexpected EOF';
 			ast.push(m);
 		}
 		
@@ -288,8 +288,17 @@ function(con, arg) { // i:"("
 	
 	let rep = (a, p) => {
 		cor['$args'] = a;
-		eval_(['do', ...read_all(p)], cor);
-		let c = {ok:true, msg:out.join('\n')}
+		
+		let c = {ok:true};
+		try {
+			eval_(['do', ...read_all(p)], cor);
+			c.msg = out.join('\n');
+		}
+		catch(e) {
+			c.ok = false;
+			c.msg = e.message || e;
+		}
+		
 		if(arg.time)
 			c.time = new Date() - _ST;
 		out.length = 0;
