@@ -49,7 +49,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	},
 	
 	// Destructure b into symbol tree of in a
-	des = (ctx, a, b) => arr(a) ? a.forEach((x, i) => des(ctx, x, b[i])) : ctx[a] = b,
+	des = (ctx, a, b) => arr(a) ? a.forEach((x, i) => des(ctx, x, b[i])) : (ctx[a] = b, 0),
 	
 	// Returns a new context with the specified bindings applied. If e is
 	// truthy, values are (sequentially) evaluated; otherwise, they're applied
@@ -197,7 +197,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		fn: (ctx, b, ...f) => (...a) => {
 			let stx = bind([], ctx);
 			//b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (stx[j] = a[i], 0));
-			b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (des(stx, j, a[i]), 0));
+			b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : des(stx, j, a[i]));
 			return _do(stx, ...f);
 		},
 		defmacro: (ctx, k, b, ...f) => spe.def(ctx, k, tag('M', spe.fn(ctx, b, ...f))),
