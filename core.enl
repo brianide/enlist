@@ -1,15 +1,14 @@
 (defmacro defn [n b & fs] ^(def ~n (fn ~b ~@fs)))
 
-(defn swap! [a f & xs] (reset! a (apply f (cons @a xs))))
+(defn str [& s] (if s ($call s 'join "") ""))
 
-(defn complement [p]
-  (fn [& args] (not (apply p args))))
-  
+(defn deref [a] ('__a a))
+(defn reset! [a] ($set a '__a))
+(defn swap! [a f & xs] ($set a (apply f (cons @a xs))))
+
 (defn identity [a] a)
-
-(defn partial [f & xs]
-  (fn [& ys]
-    (apply f (concat xs ys))))
+(defn complement [p] (fn [& args] (not (apply p args))))
+(defn partial [f & xs] (fn [& ys] (apply f (concat xs ys))))
 
 (defn count [c]
   (if (nil? c) 0
@@ -24,15 +23,27 @@
 (defn nil? [a] (if ($exact a false) false ($eq a nil)))
 (def some? (complement nil?))
 
-(defn even? [n] (== 0 (mod n 2)))
-(defn odd? [n] (== 1 (mod n 2)))
+(defn even? [n] ($exact 0 (mod n 2)))
+(defn odd? [n] ($exact 1 (mod n 2)))
 (defn pos? [n] (> n 0))
 (defn neg? [n] (< n 0))
 (defn zero? [n] (== 0 n))
 (defn inc [n] (+ n 1))
 (defn dec [n] (- n 1))
+(defn negate [n] (- 0 n))
 
-(defn str [& s] (if s ($call s 'join "") ""))
+(defn type [a] (if a ('constructor a) nil))
+(defn has-constructor? [con a] (if a ($exact con ('constructor a)) false))
+(def string? (partial has-constructor? $String))
+(def number? (partial has-constructor? $Number))
+(def seq? ('isArray $Array))
+(def map? (partial has-constructor? $Object))
+(def set? (partial has-constructor? $Set))
+(def regex? (partial has-constructor? $RegExp))
+(defn boolean? [a] (if (not (nil? a)) ($exact $Boolean ('constructor a)) false))
+(def function? (partial has-constructor? $Function))
+(defn macro? [a] (if a ('__M a) false))
+(defn atom? [a] (if a ('__A a) false))
 
 (defn nth [n coll] (if (some? coll) ($get coll n)))
 (defn first [coll] (nth 0 coll))
@@ -42,30 +53,29 @@
 (defn butlast [coll] (if (some? coll) ($call coll 'slice 0 (dec (count coll)))))
 (defn take [n coll] (if (some? coll) ($call coll 'slice 0 n)))
 (defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
-(def rest (partial drop 1))      
+(def rest (partial drop 1))
 
 (defmacro or [& xs]
   (if (empty? xs)
     nil
     (if ($exact 1 (count xs))
       (first xs)
-      (let [cvar (gensym)]
-        ^(let [~cvar ~(first xs)]
-           (if ~cvar ~cvar (or ~@(rest xs))))))))
+      ^(let [cvar# ~(first xs)]
+         (if cvar# cvar# (or ~@(rest xs)))))))
 
 (defmacro and [& xs]
   (if (empty? xs)
     nil
     (if ($exact 1 (count xs))
       (first xs)
-      (let [cvar (gensym)]
-        ^(let [~cvar ~(first xs)]
-           (if ~cvar (and ~@(rest xs)) ~cvar))))))
+      ^(let [cvar# ~(first xs)]
+         (if cvar# (and ~@(rest xs)) cvar#)))))
            
 (defmacro if-let [b t f] ^(let ~b (if ~(first b) ~t ~f)))
 (defmacro when [p & fs] ^(if ~p (do ~@fs)))
 (defmacro when-not [p & fs] ^(if ~p nil (do ~@fs)))
 (defmacro when-let [b & fs] ^(let ~b (if ~(first b) (do ~@fs))))
+
 
 (defmacro cond [& ps]
   (if (empty? ps)
@@ -75,7 +85,7 @@
 (defmacro condp [p exp & ts]
   (let [gpred (gensym "pred")
         gexpr (gensym "expr")
-        init (if (odd? (count ts)) (last ts) nil)
+        init (if (odd? (count ts)) (last ts))
         ts (if init (butlast ts) ts)
         ts (partition 2 ts)]
     ^(let [~gpred ~p ~gexpr ~exp]
@@ -84,73 +94,6 @@
             (conj ^(if (~gpred ~(v 0) ~gexpr) ~(v 1)) a))
           init
           ts))))
-
-(defmacro -> [v & fs]
-  (if (empty? fs)
-    v
-    (let [f (first fs)
-          f (if (seq? f) f (list f))]
-      ^(-> (~(first f) ~v ~@(rest f)) ~@(rest fs)))))
-
-(defmacro ->> [v & fs]
-  (if (empty? fs)
-    v
-    (let [f (first fs)
-          f (if (seq? f) f (list f))]
-      ^(->> (~@f ~v) ~@(rest fs)))))
-
-(defmacro as-> [v n & fs]
-  ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
-
-(defn has-constructor? [con a] (if a ($exact con ('constructor a)) false))
-(def string? (partial has-constructor? $String))
-(def number? (partial has-constructor? $Number))
-(def map? (partial has-constructor? $Object))
-(def set? (partial has-constructor? $Set))
-(def function? (partial has-constructor? $Function))
-(def regex? (partial has-constructor? $RegExp))
-(defn boolean? [a] (if (not (nil? a)) ($exact $Boolean ('constructor a)) false))
-
-(def gensym
-  (let [cnt (atom 0)]
-    (fn [a]
-      (swap! cnt inc)
-      (str "__" (if a a "g") "_" @cnt))))
-
-(defn == [a b]
-  ($exact ($val a) ($val b)))
-
-(defn = [a b]
-  (cond
-    (string? a) (if (string? b)
-                    (== a b))
-    (nil? a)    (nil? b)
-    (seq? a)    (and
-                  (seq? b)
-                  ($exact (count a) (count b))
-                  (every? (fn [x] (= (nth x a) (nth x b))) (range 0 (count a))))
-    (map? a)    (and
-                  (= (sort (keys a)) (sort (keys b)))
-                  (every? (fn [x] (= (get a x) (get b x))) (keys a)))
-    true        ($exact a b)))
-
-(def not= (complement =))
-(def not-empty (complement empty?))
-(def > $gt)
-(def < $lt)
-(defn >= [a b] (or (> a b) (= a b)))
-(defn <= [a b] (or (< a b) (= a b)))
-
-(defn map [f coll] ($call coll 'map (fn [x] (f x))))
-(defn map-indexed [f coll] ($call coll 'map (fn [x i] (f i x))))
-(defn run! [f coll] ($call coll 'forEach (fn [x] (f x))))
-(defn filter [p coll] ($call coll 'filter (fn [x] (p x))))
-(defn remove [p coll] (filter (complement p) coll))
-(defn every? [p coll] ($call coll 'every (fn [x] (p x))))
-(defn some [p coll] ($call coll 'some (fn [x] (p x))))
-(defn find [p coll] (if (some? coll) ($call coll 'find (fn [x] (p x)))))
-(defn split-at [n coll] (list (take n coll) (drop n coll)))
-(defn reverse [coll] (if (some? coll) ($call ($call coll 'slice) 'reverse)))
 
 (defmacro defa [n & fs]
   (let [atab (list)
@@ -182,6 +125,62 @@
                           ^(if (>= (inc (count args)) ~(first vari))
                              (apply ~gvari args)
                              (throw (str "No matching arity (" '~n ")")))))))))))
+
+(defmacro -> [v & fs]
+  (if (empty? fs)
+    v
+    (let [f (first fs)
+          f (if (seq? f) f (list f))]
+      ^(-> (~(first f) ~v ~@(rest f)) ~@(rest fs)))))
+
+(defmacro ->> [v & fs]
+  (if (empty? fs)
+    v
+    (let [f (first fs)
+          f (if (seq? f) f (list f))]
+      ^(->> (~@f ~v) ~@(rest fs)))))
+
+(defmacro as-> [v n & fs]
+  ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
+
+(defn == [a b]
+  ($exact ($val a) ($val b)))
+
+(defn = [a b]
+  (cond
+    (string? a) (if (string? b)
+                    (== a b))
+    (nil? a)    (nil? b)
+    (seq? a)    (and
+                  (seq? b)
+                  ($exact (count a) (count b))
+                  (every? (fn [x] (= (nth x a) (nth x b))) (range 0 (count a))))
+    (map? a)    (and
+                  (= (sort (keys a)) (sort (keys b)))
+                  (every? (fn [x] (= (get a x) (get b x))) (keys a)))
+    true        ($exact a b)))
+
+(def not= (complement =))
+(def not-empty (complement empty?))
+
+(def > $gt)
+(def < $lt)
+(defn >= [a b] (or (> a b) (= a b)))
+(defn <= [a b] (or (< a b) (= a b)))
+
+(defn map [f coll] ($call coll 'map (fn [x] (f x))))
+(defn map-indexed [f coll] ($call coll 'map (fn [x i] (f i x))))
+(defn run! [f coll] ($call coll 'forEach (fn [x] (f x))))
+(defn filter [p coll] ($call coll 'filter (fn [x] (p x))))
+(defn remove [p coll] (filter (complement p) coll))
+(defn every? [p coll] ($call coll 'every (fn [x] (p x))))
+(defn some [p coll] ($call coll 'some (fn [x] (p x))))
+(defn find [p coll] (if (some? coll) ($call coll 'find (fn [x] (p x)))))
+(defn split-at [n coll] (list (take n coll) (drop n coll)))
+(defn reverse [coll] (if (some? coll) ($call ($call coll 'slice) 'reverse)))
+
+(defn split [s re] ($call s 'split re))
+(defa join ([coll] (join "" coll)) ([sep coll] ($call coll 'join sep)))
 
 (defn comparator [op]
   (fn [a b]
@@ -288,14 +287,11 @@
     (map first (re-groups reg s))
     (first (re-groups reg s))))
 
-(defn $scr [s & args]
-  ($call (-> $args ($get s) ($get 'call)) 'apply nil args))
-
-(defn $color [c s]
+(defn color [c s]
   (str "\x60" c s "\x60"))
 
-(defn $uncolor [s]
+(defn uncolor [s]
   ($call s 'replace rg"\x60[0-9A-Za-z](?!:.?\x60)([^\x60\n]+)\x60" '$1))
   
-(defn $rarity->number [s]
+(defn rarity->number [s]
   (number (second s)))

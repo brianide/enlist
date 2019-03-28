@@ -66,7 +66,7 @@
   (send-line! window (str "#up " file))
   (wait 1)
   (send-line! window file)
-  (wait 3))
+  (wait 2))
 
 (defn cleanup! [script-name file-name]
   (send-line! window (str "#up " script-name " delete"))
