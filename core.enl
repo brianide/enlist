@@ -55,6 +55,12 @@
 (defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
 (def rest (partial drop 1))
 
+(def gensym
+  (let [cnt (atom 0)]
+    (fn [a]
+      (swap! cnt inc)
+      (str "__" (if a a "g") "_" @cnt))))
+
 (defmacro or [& xs]
   (if (empty? xs)
     nil
@@ -83,15 +89,13 @@
     ^(if ~(first ps) ~(second ps) (cond ~@(drop 2 ps)))))
 
 (defmacro condp [p exp & ts]
-  (let [gpred (gensym "pred")
-        gexpr (gensym "expr")
-        init (if (odd? (count ts)) (last ts))
+  (let [init (if (odd? (count ts)) (last ts))
         ts (if init (butlast ts) ts)
         ts (partition 2 ts)]
-    ^(let [~gpred ~p ~gexpr ~exp]
+    ^(let [pred# ~p expr# ~exp]
        ~(reduce-right
           (fn [a v]
-            (conj ^(if (~gpred ~(v 0) ~gexpr) ~(v 1)) a))
+            (conj ^(if (pred# ~(v 0) expr#) ~(v 1)) a))
           init
           ts))))
 

@@ -48,12 +48,15 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		return c;
 	},
 	
+	// Destructure b into symbol tree of in a
+	des = (ctx, a, b) => arr(a) ? a.forEach((x, i) => des(ctx, x, b[i])) : ctx[a] = b,
+	
 	// Returns a new context with the specified bindings applied. If e is
 	// truthy, values are (sequentially) evaluated; otherwise, they're applied
 	// as-is.
 	bind = (p, r = {}, e = 0) => {
 		let s = Object.create(r);
-		prt(p).map(([i, j]) => s[i] = e ? eval_(j, s) : j);
+		prt(p).map(([i, j]) => des(s, i, e ? eval_(j, s) : j));
 		return s;
 	},
 	
@@ -156,18 +159,16 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	// Retrieve a list of stored scripts in the database
 	lib = #db.f({ type:'lisp_scr' }).array().reduce((d, i) => (d[i.name] = i.body, d), {}),
 	
-	// Gensym
-	gsn = 0,
-	gsym = a => a + '__' + gsn++,
-	
 	// Special forms
 	_do = (ctx, ...f) => f.map(a => eval_(a, ctx)).slice(-1)[0],
+	
+	qqn = 0,
 	qq = (ctx, a) => {
-		let stx = '__s' in ctx ? ctx : bind(['__s', gsn++], ctx),
+		let stx = '__s' in ctx ? ctx : bind(['__s', qqn++], ctx),
 		    [n,p] = str(a) ? a.split(/#$/) : [];
 		
 		return tru(p)
-			  ? [n + '__' + stx.__s]
+			  ? [n + '__auto_' + stx.__s]
 			: !arr(a) || !len(a)
 			  ? [a]
 			: a[0] == 'unquote'
@@ -195,7 +196,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		},
 		fn: (ctx, b, ...f) => (...a) => {
 			let stx = bind([], ctx);
-			b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (stx[j] = a[i], 0));
+			//b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (stx[j] = a[i], 0));
+			b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (des(stx, j, a[i]), 0));
 			return _do(stx, ...f);
 		},
 		defmacro: (ctx, k, b, ...f) => spe.def(ctx, k, tag('M', spe.fn(ctx, b, ...f))),
@@ -267,7 +269,6 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		$Set: Set,
 		
 		// Misc
-		gensym: gsym,
 		atom: a => tag('A', {__a:a}),
 		recur: (...a) => tag('R', a),
 		$ST: _ST,
