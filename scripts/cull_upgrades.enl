@@ -10,14 +10,14 @@
 
 (defn market-data [x]
   (browse {'name   ('name x)
-           'rarity ($rarity->number ('rarity x))}))
+           'rarity (rarity->number ('rarity x))}))
 
 (defn mean [xs]
   (/ (reduce + 0 xs) (count xs)))
 
 (defn average-price [x]
   (->> (browse {'name ('name x)
-                'rarity ($rarity->number ('rarity x))})
+                'rarity (rarity->number ('rarity x))})
        (take 10)
        (map 'cost)
        mean))

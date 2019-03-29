@@ -49,7 +49,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	},
 	
 	// Destructure b into symbol tree of in a
-	des = (ctx, a, b) => arr(a) ? a.forEach((x, i) => des(ctx, x, b[i])) : (ctx[a] = b, 0),
+	des = (ctx, a, b) => (arr(a) ? a.some((x, i) => (x == '&' ? (ctx[a[i + 1]] = b.slice(i), 1) : des(ctx, x, b[i]))) : (ctx[a] = b, 0), 0),
 	
 	// Returns a new context with the specified bindings applied. If e is
 	// truthy, values are (sequentially) evaluated; otherwise, they're applied
@@ -165,9 +165,9 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	qqn = 0,
 	qq = (ctx, a) => {
 		let stx = '__s' in ctx ? ctx : bind(['__s', qqn++], ctx),
-		    [n,p] = str(a) ? a.split(/#$/) : [];
+		    [n,p] = str(a) ? a.split(/(?=#$)/) : [];
 		
-		return tru(p)
+		return p
 			  ? [n + '__auto_' + stx.__s]
 			: !arr(a) || !len(a)
 			  ? [a]
@@ -183,21 +183,22 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		'do': _do,
 		'let': (ctx, b, ...f) => _do(bind(b, ctx, 1), ...f),
 		loop: (ctx, b, ...f) => {
-			let ntx = bind(b, ctx, 1), v;
+			let v, e = 1;
 			for(;;) {
-				v = _do(ntx, ...f);
+				v = _do(bind(b, ctx, e), ...f);
 				if(def(v) && v.__R)
-					for(let i = 0; i < len(v); i++)
-						ntx[b[i * 2]] = v[i];
+					for(let i = 0; i < len(v); i++) {
+						b = b.slice();
+						b[i * 2 + 1] = v[i];
+						e = 0;
+					}
 				else
-					break;
+					return v;
 			}
-			return v;
 		},
 		fn: (ctx, b, ...f) => (...a) => {
 			let stx = bind([], ctx);
-			//b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : (stx[j] = a[i], 0));
-			b.some((j, i) => j == '&' ? (stx[b[i + 1]] = a.slice(i), 1) : des(stx, j, a[i]));
+			des(stx, b, a);
 			return _do(stx, ...f);
 		},
 		defmacro: (ctx, k, b, ...f) => spe.def(ctx, k, tag('M', spe.fn(ctx, b, ...f))),
@@ -282,10 +283,10 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 //		}
 	};
 	
-	let rep = (p, a = {}) => {
+	let rep = (p, a = {}, s = new Date()) => {
 		cor.$args = a;
 		
-		let c = {ok:true}, s = new Date();
+		let c = {ok:true};
 		try {
 			eval_(['do', ...read_all(p)], cor);
 			c.msg = out.join('\n');
@@ -306,5 +307,5 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	// Load core libs and evaluate from args
 	spe.load(cor, ['_core']);
 	
-	return arg ? rep(arg.i, arg) : rep;
+	return arg ? rep(arg.i, arg, _ST) : rep;
 }

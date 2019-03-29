@@ -78,6 +78,7 @@
          (if cvar# (and ~@(rest xs)) cvar#)))))
            
 (defmacro if-let [b t f] ^(let ~b (if ~(first b) ~t ~f)))
+(defmacro unless [b f t] ^(if ~b ~t ~f))
 (defmacro when [p & fs] ^(if ~p (do ~@fs)))
 (defmacro when-not [p & fs] ^(if ~p nil (do ~@fs)))
 (defmacro when-let [b & fs] ^(let ~b (if ~(first b) (do ~@fs))))
@@ -117,18 +118,15 @@
           fs)
     (if (and (not-empty vari) (> (count atab) (first vari)))
       (throw (str "Arity conflicts with variadic (" n ")")))
-      (let [gatab (gensym "tab")
-            gvari (gensym "var")
-            gfun  (gensym "fun")]
-        ^(let [~gatab ~(cons 'list atab) ~@(if (empty? vari) () (list gvari (second vari)))]
-           (def ~n (fn [& args]
-                     (if-let [~gfun (~gatab (count args))]
-                       (apply ~gfun args)
-                       ~(if (empty? vari)
-                          ^(throw (str "No matching arity (" '~n ")"))
-                          ^(if (>= (inc (count args)) ~(first vari))
-                             (apply ~gvari args)
-                             (throw (str "No matching arity (" '~n ")")))))))))))
+      ^(let [atab# ~(cons 'list atab) ~@(if (empty? vari) () (list ^vari# (second vari)))]
+         (def ~n (fn [& args]
+                   (if-let [fun# (atab# (count args))]
+                     (apply fun# args)
+                     ~(if (empty? vari)
+                        ^(throw (str "No matching arity (" '~n ")"))
+                        ^(if (>= (inc (count args)) ~(first vari))
+                           (apply vari# args)
+                           (throw (str "No matching arity (" '~n ")"))))))))))
 
 (defmacro -> [v & fs]
   (if (empty? fs)
@@ -182,6 +180,10 @@
 (defn find [p coll] (if (some? coll) ($call coll 'find (fn [x] (p x)))))
 (defn split-at [n coll] (list (take n coll) (drop n coll)))
 (defn reverse [coll] (if (some? coll) ($call ($call coll 'slice) 'reverse)))
+
+(defa range
+  ([lo up] ($call $Array 'from {'length (- up lo)} (fn [x i] (+ lo i))))
+  ([up] (range 0 up)))
 
 (defn split [s re] ($call s 'split re))
 (defa join ([coll] (join "" coll)) ([sep coll] ($call coll 'join sep)))

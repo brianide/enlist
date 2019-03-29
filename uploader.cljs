@@ -1,13 +1,13 @@
-#!/usr/bin/clojure
-(ns hackmud.uploader
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
-            [clojure.java.shell :refer [sh]]))
+#!/usr/bin/env plk
+(require '[planck.core :refer [sleep slurp spit]]
+         '[planck.io :as io]
+         '[planck.shell :refer [sh]]
+         '[clojure.string :as string])
 
 ;;; Utils
 
 (defn wait [s]
-  (Thread/sleep (* s 1000)))
+  (sleep (* s 1000)))
 
 (defn find-window [clazz]
   (string/trim
@@ -33,7 +33,7 @@
   }")
 
 (defn non-whitespace-count [s]
-  (->> s seq (remove #(Character/isWhitespace %)) count))
+  (->> s seq (remove string/blank?) count))
   
 (defn apply-template [s reps]
   (string/replace s #"\{\{([^}]+)}}" #(reps (keyword (% 1)))))
@@ -43,7 +43,7 @@
   containing no more than limit non-whitespace characters."
   (let [sp (->> s
                 (map-indexed vector)
-                (remove #(Character/isWhitespace (% 1)))
+                (remove #(string/blank? (% 1)))
                 (partition-all limit)
                 (map ffirst)
                 (partition 2 1)
@@ -56,7 +56,7 @@
   (map (fn [[b e]] (subs s b e)) (splits limit s)))
 
 (defn random-name []
-  (format "hm_%04x" (rand-int 0xFFFF)))
+  (str "hm_" (-> (rand-int 0xFFFF) (.toString 16) (.padStart 4 "0"))))
 
 ;;; Main program
 
@@ -70,9 +70,9 @@
 
 (defn cleanup! [script-name file-name]
   (send-line! window (str "#up " script-name " delete"))
-  (io/delete-file file-name :silent))
+  (io/delete-file file-name))
 
-(defn main [source remote entry-type char-limit]
+(defn -main [source remote entry-type char-limit]
   (let [content (slurp source)
         script-name (random-name)
         file-name (str script-name ".js")
@@ -81,9 +81,9 @@
                                                :name remote
                                                :body ""
                                                :append "false"}))
-        limit (- (Integer/parseInt char-limit) bp-size)
+        limit (- (js/parseInt char-limit) bp-size)
         segs (map-indexed vector (segments limit content))]
-    (printf "Uploading %s to %s in %d segments\n" source remote (count segs))
+    (println "Uploading " source " to " remote " in " (count segs) " segments\n")
     (run! (fn [[i s]]
             (spit file-name
                   (apply-template boilerplate {:type entry-type
@@ -92,7 +92,6 @@
                                                :append (str (> i 0))}))
             (send-upload-commands! script-name))
           segs)
-    (cleanup! script-name file-name))
-  (shutdown-agents))
+    (cleanup! script-name file-name)))
 
-(apply main *command-line-args*)
+(set! *main-cli-fn* -main)
