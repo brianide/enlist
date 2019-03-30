@@ -83,7 +83,7 @@
                                                :append "false"}))
         limit (- (js/parseInt char-limit) bp-size)
         segs (map-indexed vector (segments limit content))]
-    (println "Uploading " source " to " remote " in " (count segs) " segments\n")
+    (println "Uploading" source "to" remote "in" (count segs) "segments\n")
     (run! (fn [[i s]]
             (spit file-name
                   (apply-template boilerplate {:type entry-type

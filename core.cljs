@@ -3,8 +3,8 @@
 (defn str [& s] (if s ($call s 'join "") ""))
 
 (defn deref [a] ('__a a))
-(defn reset! [a] ($set a '__a))
-(defn swap! [a f & xs] ($set a (apply f (cons @a xs))))
+(defn reset! [a v] ($set a '__a v))
+(defn swap! [a f & xs] ($set a '__a (apply f (cons @a xs))))
 
 (defn identity [a] a)
 (defn complement [p] (fn [& args] (not (apply p args))))
@@ -55,6 +55,12 @@
 (defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
 (def rest (partial drop 1))
 
+(defn drop-while [f coll]
+  (if (some? coll)
+    (let [cf (complement f)
+          index ($call coll 'findIndex cf)]
+      (if (neg? index) () ($call coll 'slice index)))))
+
 (def gensym
   (let [cnt (atom 0)]
     (fn [a]
@@ -83,6 +89,15 @@
 (defmacro when-not [p & fs] ^(if ~p nil (do ~@fs)))
 (defmacro when-let [b & fs] ^(let ~b (if ~(first b) (do ~@fs))))
 
+(defmacro case [exp & cs]
+  (let [defl (if (odd? (count cs)) (last cs))
+        cs (partition 2 (if defl (butlast cs) cs))]
+    ^(let [exp# ~exp]
+       ~(reduce-right
+          (fn [a [tconst res]]
+            (conj ^(if (= exp# ~tconst) ~res) a))
+          defl
+          cs))))
 
 (defmacro cond [& ps]
   (if (empty? ps)
@@ -95,8 +110,8 @@
         ts (partition 2 ts)]
     ^(let [pred# ~p expr# ~exp]
        ~(reduce-right
-          (fn [a v]
-            (conj ^(if (pred# ~(v 0) expr#) ~(v 1)) a))
+          (fn [a [texp res]]
+            (conj ^(if (pred# ~texp expr#) ~res) a))
           init
           ts))))
 
@@ -301,3 +316,10 @@
   
 (defn rarity->number [s]
   (number (second s)))
+
+(defn $scr [n & args] (apply ('call ($args n)) args))
+
+;;; Database stuff
+
+(defn list-files []
+  (map 'name ($call $db 'f {'type 'lisp_scr})))

@@ -1,4 +1,4 @@
-function(con, arg) { // i:"(-> $env keys sort print)"
+function(cnt, arg) { // i:"(-> $env keys sort print)"
 	
 	// SYNTAX
 	// (+ 1 2) - Sequence; generally denotes a method invocation
@@ -23,7 +23,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	// * Anything with Object as its constructor is a hash-map
 
 	// Monstrous regex to enumerate language tokens.
-	let reg = _ => (/~@|(\w+)?"((\\.|[^\\"])*)"|([(){}[\]^'~@#]|[\w%+*\/#$&!?<>=._-]+)/g),
+	let reg = _ => (/~@|(\w+)?"((\\.|[^\\"])*)"|([(){}[\]^'~@]|[\w%+*\/#$&!?<>=._-]+)|;[^\n]*/g),
 	
 	// Objects are tagged by simply setting a specific field on them to true.
 	// This allows us to check for these types in a few characters, while
@@ -34,7 +34,9 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	def = n => n != void 0,
 	len = s => s.length,
 	arr = Array.isArray,
-	obj = a => a.constructor == Object,
+	con = a => a.constructor,
+	obj = a => con(a) == Object,
+	set = a => con(a) == Set,
 	str = a => a instanceof String || typeof a == 'string',
 	
 	// Check for Clojure-ish truthiness
@@ -65,8 +67,10 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	
 	// Read an expression into the AST
 	eof = {},
+	nop = {},
 	read_exp = (prog, reg, [m,r,s] = reg.exec(prog) || [eof]) =>
-		m == "'"         ? ['quote', read_exp(prog, reg)]
+		m[0] == ';'      ? nop
+		: m == "'"       ? ['quote', read_exp(prog, reg)]
 		: m == '^'       ? ['quasiquote', read_exp(prog, reg)]
 		: m == '~'       ? ['unquote', read_exp(prog, reg)]
 		: m == '~@'      ? ['splice-unquote', read_exp(prog, reg)]
@@ -93,7 +97,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 					break;
 				else
 					throw m != eof ? 'Unmatched ' + m : 'Unexpected EOF';
-			ast.push(m);
+			if(m != nop)
+				ast.push(m);
 		}
 		
 		return ast;
@@ -115,6 +120,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 	apply = (e, i) =>
 		def(e.call) ? e.call(0, ...i)
 		: str(e) ? i[0][e]
+		: set(e) ? e.has(i[0]) && i[0]
 		: (obj(e) && str(i[0])) || (arr(e) && !isNaN(i[0])) ? e[i[0]]
 		: null[9],
 
@@ -147,9 +153,14 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		
 	// Returns a printable description of the object. Needs work.
 	prn = (a, p = 1) =>
-	    !def(a) ? 'nil'
-		: arr(a) ? `(${a.map(e => prn(e,p)).join(' ')})`
-		: str(a) ? (p ? a : `\"${a}\"`)
+		!def(a)
+		  ? 'nil'
+		: arr(a)
+		  ? `(${a.map(e => prn(e,p)).join(' ')})`
+		: set(a)
+		  ? `#{${[...a].map(e => prn(e,p)).join(' ')}}`
+		: str(a)
+		  ? (p ? a : `\"${a}\"`)
 		: obj(a)
 		  ? `{${Object.keys(a).map(k => [prn(k,p), prn(a[k],p)].join(' ')).join(' ')}}`
 		: def(a.valueOf)
@@ -185,7 +196,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		loop: (ctx, b, ...f) => {
 			let v, e = 1;
 			for(;;) {
-				v = _do(bind(b, ctx, e), ...f);
+				ctx = bind(b, ctx, e);
+				v = _do(ctx, ...f);
 				if(def(v) && v.__R)
 					for(let i = 0; i < len(v); i++) {
 						b = b.slice();
@@ -208,8 +220,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		macroexpand: mexp,
 		'eval': (ctx, a) => eval_(eval_(a, ctx), ctx),
 		load: (ctx, n) => arr(n)
-		                  ? n.map(p => spe.load(0, p))
-		                  : eval_(['do', ...read_all(lib[n])], cor)
+		                  ? n.map(p => spe.load(ctx, p))
+		                  : eval_(['do', ...read_all(lib[n])], ctx)
 	},
 	
 	// Core context
@@ -223,7 +235,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		apply: apply,
 		
 		// Hashmap functions
-		'hash-map': (...a)        => bind(a),
+		'hash-map': (...a) => bind(a),
+		set:         a     => new Set(a),
 		
 		// Arithmetic and boolean operators
 		'+':   (a, b) => a + b,
@@ -239,7 +252,8 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		not:     a     => !tru(a),
 		
 		// I/O
-		prn: a => (out.push(prn(a,0)), void 0),
+		prn:   a => (out.push(prn(a,0)), void 0),
+		log:   a => #D(prn(a,0)),
 		print: a => (out.push(prn(a)), void 0),
 		'read-string': read,
 		'read-all': read_all,
@@ -254,7 +268,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		$get:    (o, n)       => o[n],
 		$set:    (o, n, v)    => o[n] = v,
 		$call:   (o, n, ...a) => o[n](...a),
-		throw:   m           => {throw m},
+		throw:    m           => {throw m},
 		
 		$Array: Array,
 		$Boolean: Boolean,
@@ -273,14 +287,7 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		atom: a => tag('A', {__a:a}),
 		recur: (...a) => tag('R', a),
 		$ST: _ST,
-		$ctx: con,
-//		$db: {
-//			i:   q     => #db.i(q),
-//			r:   q     => #db.r(q),
-//			f:  (q, p) => #db.f(q, p).array(),
-//			u:  (q, c) => #db.u(q, c),
-//			us: (q, c) => #db.us(q, c)
-//		}
+		$ctx: cnt,
 	};
 	
 	let rep = (p, a = {}, s = new Date()) => {
@@ -289,23 +296,35 @@ function(con, arg) { // i:"(-> $env keys sort print)"
 		let c = {ok:true};
 		try {
 			eval_(['do', ...read_all(p)], cor);
-			c.msg = out.join('\n');
 		}
 		catch(e) {
 			c.ok = false;
-			c.msg = e.message || e;
+			out.unshift(e.message || e, "`D#######`");
 		}
 		
+		// Calculate execution time if requested
 		if(a.time)
 			c.time = new Date() - s;
+
+		c.msg = out.join('\n');
 		out.length = 0;
 		
 		return c;
 	};
 	rep.env = cor.$env = cor;
 	
-	// Load core libs and evaluate from args
-	spe.load(cor, ['_core']);
+	// Load privileged libraries
+	spe.load(Object.assign(bind([], cor), {
+		$db: {
+			i:   q     => #db.i(q),
+			r:   q     => #db.r(q),
+			f:  (q, p) => #db.f(q, p).array(),
+			u:  (q, c) => #db.u(q, c),
+			us: (q, c) => #db.us(q, c)
+		}
+
+	}), ['_core']);
 	
+	// Run script from args, or return evaluator
 	return arg ? rep(arg.i, arg, _ST) : rep;
 }
