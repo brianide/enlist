@@ -1,10 +1,28 @@
-# hackmud-lisp
-A small, moderately-golfed but reasonably-legible Clojure/MAL-inspired Lisp intepreter for use in hackmud. Inspired by the efforts of hackmud-player @soron.
+# enlist
+A small, moderately-golfed but generally-legible, Clojure/MAL/soron.lisp-inspired Lisp intepreter for use in HackMUD. 
 
-This code doesn't represent especially good Javascript conventions (to put it lightly), but I've tried to make it as understandable as possible without succumbing to hackmud's character count limitations (which, for me, currently stand around 4000 characters). It's worth noting that the singular objective of this interpreter is to correctly execute well-formed code; debugging programs in this dialect is not for the faint of heart.
+The code herein doesn't represent especially good Javascript conventions (to put it lightly), but I've tried to make it as easy to follow as possible without succumbing to the char count limit.
 
-The interpreter itself is contained in [lisp.js](lisp.js), which you'll need to upload first. You can then run [lisp_core.js](lisp_core.js), which places a library script defining standard functions and macros in your database. This library will be implicitly included in any other programs you run. Note that you'll need to change the caller check from *hg* to whatever your ingame name is; this is left as an exercise to the reader.
+![Example](https://github.com/brianide/enlist/raw/master/example.png)
 
-I've decided to open source this code despite both its ugliness and the competitiveness of hackmud because it represents a unique period of excitement and discovery in my career as a software engineer. It was my first genuine foray into the world of Lisp, and every day I spent working on it yielded insights that have irrecovably altered the way I think about programming and programming languages.
+## Features
+* Decent library of functions and macros mostly matching the functionality of their Clojure counterparts
+* Curly-brace shorthand for hash-map definitions
+* RegExp literals
+* Symbols, hash-maps, lists, and sets applicable as functions
+* Hygienic macros with automatic symbol generation via `#` suffix
+* Multi-arity function definitions via `defa`
+* `loop`/`recur` iteration model
+* Array destructuring within `let`/`fn`/`loop` forms, with nesting and variadics
 
-The [Make A Lisp](https://github.com/kanaka/mal) project was an indespensable resource on this project, and I can't recommend it enough to anyone who has even a passing interest in what the Lisp hype is about. Unlike most languages, learning Lisp is more a matter of understanding how it works than memorizing syntax, so writing an interpreter for it is a very effective way to pick it up. And picking it up is rewarding, no matter what language you work in; there's a bit of Lisp in pretty much every language in use today, and once you learn about it, you'll start wishing there was more.
+## Caveats and Weirdness
+* Square-brackets are synonymous with parentheses, as in Chicken Scheme.
+* Curly-braces are strictly a shorthand for `(hash-map ...)`; they are not hash-map literals.
+* Variadic args receive an empty list, rather than nil, when nothing is supplied for them.
+* No implicit `loop`/`recur` frames.
+* Lists are just JS arrays, hash-maps are just JS objects, symbols are just JS strings, and functions are just JS functions. There are limitations that come with this -- TCO is nearly non-existent, vectors (and literal syntax for them) don't exist, maps only support string keys, etc. -- but it drastically simplifies interop.
+* Mutating functions are dangerous and should rarely be used directly. They're particularly insidious when used in conjunction with self-evaluating forms present in the AST, as it becomes very easy to inadvertently alter those forms within the AST itself.
+
+## Thanks
+* I never would have undertaken this project if @ethankaminski hadn't done it first, and several ideas are pilfered wholesale from soron.lisp.
+* The [Make A Lisp](https://github.com/kanaka/mal) project was an indespensable resource on this project, and I can't recommend it enough, especially if you're completely clueless about Lisp, as I was when I started.
