@@ -250,9 +250,8 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		not:     a     => !tru(a),
 		
 		// I/O
-		prn:   a => (out.push(prn(a,0)), void 0),
-		log:   a => #D(prn(a,0)),
-		print: a => (out.push(prn(a)), void 0),
+		'prn-str':   a => prn(a,0),
+		'print-str': a => prn(a),
 		'read-string': read,
 		'read-all': read_all,
 		
@@ -283,9 +282,10 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		
 		// Misc
 		atom: a => tag('A', {__a:a}),
-		recur: (...a) => tag('R', a),
 		$ST: _ST,
 		$ctx: cnt,
+		$out: out,
+		$dbg: a => #D(a),
 	};
 	
 	let rep = (p, a = {}, s = new Date()) => {
@@ -297,14 +297,14 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		}
 		catch(e) {
 			c.ok = false;
-			out.unshift(e.message || e, "`D#######`");
+			out.unshift(e.message || e, "`D#######`", "\n");
 		}
 		
 		// Calculate execution time if requested
 		if(a.time)
 			c.time = new Date() - s;
 
-		c.msg = out.join('\n');
+		c.msg = out.join('');
 		out.length = 0;
 		
 		return c;

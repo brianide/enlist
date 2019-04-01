@@ -319,6 +319,17 @@
 
 (defn $scr [n & args] (apply ('call ($args n)) args))
 
+;;; IO
+
+(defn prn [& s]
+  ($push! $out (join " " (map prn-str s)) "\n"))
+
+(defn print [& s]
+  ($push! $out (join " " (map print-str s))))
+
+(defn println [& s]
+  (apply print (conj s "\n")))
+
 ;;; Database stuff
 
 (defn list-files []
