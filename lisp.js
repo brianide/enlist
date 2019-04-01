@@ -225,7 +225,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 	// Core context
 	cor = {		
 		// Collection operations
-		'push!': (a, ...b) => (a.push(...b), a),  
+		'$push!': (a, ...b) => (a.push(...b), a),  
 		range:   (a, b)    => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
 		list:    (...a)    => a, 
 		cons:    (i, a)    => [i, ...a],
@@ -257,16 +257,16 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		'read-all': read_all,
 		
 		// Interop
-		$val:     a           => def(a) && def(a.valueOf) ? a.valueOf() : a,
-		$new:    (c, ...a)    => new c(...a),
-		$delete: (o, n)       => delete o[n],
-		$typeof:  o           => typeof o,
-		$isa:    (o, t)       => o instanceof t,
-		$in:     (k, m)       => k in m,
-		$get:    (o, n)       => o[n],
-		$set:    (o, n, v)    => o[n] = v,
-		$call:   (o, n, ...a) => o[n](...a),
-		throw:    m           => {throw m},
+		$val:        a           => def(a) && def(a.valueOf) ? a.valueOf() : a,
+		$new:       (c, ...a)    => new c(...a),
+		'$delete!': (o, n)       => delete o[n],
+		$typeof:     o           => typeof o,
+		$isa:       (o, t)       => o instanceof t,
+		$in:        (k, m)       => k in m,
+		$get:       (o, n)       => o[n],
+		'$set!':    (o, n, v)    => o[n] = v,
+		$call:      (o, n, ...a) => o[n](...a),
+		throw:       m           => {throw m},
 		
 		$Array: Array,
 		$Boolean: Boolean,

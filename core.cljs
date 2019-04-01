@@ -3,8 +3,8 @@
 (defn str [& s] (if s ($call s 'join "") ""))
 
 (defn deref [a] ('__a a))
-(defn reset! [a v] ($set a '__a v))
-(defn swap! [a f & xs] ($set a '__a (apply f (cons @a xs))))
+(defn reset! [a v] ($set! a '__a v))
+(defn swap! [a f & xs] ($set! a '__a (apply f (cons @a xs))))
 
 (defn identity [a] a)
 (defn complement [p] (fn [& args] (not (apply p args))))
@@ -125,11 +125,11 @@
                   arity    (- (count args) (if variadic 1 0))]
               (if variadic
                 (if (empty? vari)
-                  (push! vari arity fun)
+                  ($push! vari arity fun)
                   (throw (str "Multiple variadics (" n ")")))
                 (if ($in arity atab)
                   (throw (str "Conflicting arities (" n ")"))
-                  ($set atab arity fun)))))
+                  ($set! atab arity fun)))))
           fs)
     (if (and (not-empty vari) (> (count atab) (first vari)))
       (throw (str "Arity conflicts with variadic (" n ")")))
@@ -217,10 +217,10 @@
 
 (defa partition
   ([n step coll]
-    (loop [acc () coll coll]
+    (loop [acc (list) coll coll]
       (if (empty? coll)
           acc
-          (do (push! acc ($call coll 'slice 0 n))
+          (do ($push! acc ($call coll 'slice 0 n))
               (recur acc (drop step coll))))))
   ([n coll] (partition n n coll)))
 
@@ -250,7 +250,7 @@
          kvs kvs]
     (if (not-empty kvs)
         (do 
-          ($set m (first kvs) (second kvs))
+          ($set! m (first kvs) (second kvs))
           (recur m (drop 2 kvs)))
         m)))
 
@@ -259,7 +259,7 @@
          ks ks]
     (if (not-empty ks)
         (do 
-          ($delete m (first ks))
+          ($delete! m (first ks))
           (recur m (rest ks)))
         m)))
 
@@ -288,7 +288,7 @@
                     bs (rest bs)]
                (cond
                  (map? n) ($call $Object 'assign a n)
-                 (seq? n) ($set a (first n) (second n)))
+                 (seq? n) ($set! a (first n) (second n)))
                (if (empty? bs) a (recur a (first bs) (rest bs))))))
 
 (defn comp [& fs]
@@ -300,7 +300,7 @@
       ($call reg 'exec s)
       (loop [acc (list)]
         (if-let [m ($call reg 'exec s)]
-          (recur (push! acc m)))
+          (recur ($push! acc m)))
           acc)))
   
 (defn re-find [reg s]
