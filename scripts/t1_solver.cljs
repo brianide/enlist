@@ -39,21 +39,21 @@
     (let [response (last (split ($scr scr params) "\n"))
           match (re-find r"EZ_..|command|digit|prime|terminated" response)]
       (condp (fn [c e] (c e)) match
-        (set '(EZ_21 EZ_35 EZ_40)) (recur
-                                     (merge params (next-command match params))
-                                     match)
-        (set '(command)) (recur
-                           (merge params (next-command prev-lock params))
-                           prev-lock)
-        (set '(digit)) (recur
-                         (merge params (next-digit params))
-                         match)
-        (set '(prime)) (recur
-                         (merge params (next-prime params))
-                         match)
-        (set '(terminated)) (do
-                              (prn params)
-                              (print "All locks completed"))
+        '#{EZ_21 EZ_35 EZ_40} (recur
+                                (merge params (next-command match params))
+                                match)
+        '#{command} (recur
+                      (merge params (next-command prev-lock params))
+                      prev-lock)
+        '#{digit} (recur
+                    (merge params (next-digit params))
+                    match)
+        '#{prime} (recur
+                    (merge params (next-prime params))
+                    match)
+        '#{terminated} (do
+                         (prn params)
+                         (print "All locks completed"))
         (do
           (prn params)
           (print "Encountered unknown lock" match))))))

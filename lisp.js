@@ -23,7 +23,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 	// * Anything with Object as its constructor is a hash-map
 
 	// Monstrous regex to enumerate language tokens.
-	let reg = _ => (/~@|(\w+)?"((\\.|[^\\"])*)"|([(){}[\]^'~@]|[\w%+*\/#$&!?<>=._-]+)|;[^\n]*/g),
+	let reg = _ => (/~@|(\w+)?"((\\.|[^\\"])*)"|#?([(){}[\]^'~@]|[\w%+*\/#$&!?<>=._-]+)|;[^\n]*/g),
 	
 	// Objects are tagged by simply setting a specific field on them to true.
 	// This allows us to check for these types in a few characters, while
@@ -78,6 +78,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		: m == '('     ? read_seq(prog, reg, ')')
 		: m == '['     ? read_seq(prog, reg, ']')
 		: m == '{'     ? ['hash-map', ...read_seq(prog, reg, '}')]
+		: m == '#{'    ? new Set(read_seq(prog, reg, '}'))
 		: m == 'true'  ? true
 		: m == 'false' ? false
 		: m == 'nil'   ? void 0
@@ -132,6 +133,8 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		if(!arr(a))
 			return !def(a)
 			  ? void 0
+			: set(a)
+			  ? new Set([...a].map(i => eval_(i, ctx)))
 			: str(a)
 			  ? a in ctx ? ctx[a] : null[a]
 			  : a;
@@ -265,6 +268,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		$get:       (o, n)       => o[n],
 		'$set!':    (o, n, v)    => o[n] = v,
 		$call:      (o, n, ...a) => o[n](...a),
+		$spread:     a           => [...a],
 		throw:       m           => {throw m},
 		
 		$Array: Array,
@@ -282,6 +286,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		
 		// Misc
 		atom: a => tag('A', {__a:a}),
+		recur: (...a) => tag('R', a),
 		$ST: _ST,
 		$ctx: cnt,
 		$out: out,
@@ -297,7 +302,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		}
 		catch(e) {
 			c.ok = false;
-			out.unshift(e.message || e, "`D#######`", "\n");
+			out.unshift(e.message || e, '\n`D#######`\n');
 		}
 		
 		// Calculate execution time if requested

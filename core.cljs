@@ -13,7 +13,8 @@
 (defn count [c]
   (if (nil? c) 0
     (if (map? c) (count (keys c))
-      ($get c 'length))))
+      (if (set? c) ($get c 'size)
+        ($get c 'length)))))
 
 (defn empty? [coll] ($exact 0 (count coll)))
 
@@ -172,6 +173,10 @@
                   (seq? b)
                   ($exact (count a) (count b))
                   (every? (fn [x] (= (nth x a) (nth x b))) (range 0 (count a))))
+    (set? a)    (and
+                  (set? b)
+                  ($exact (count a) (count b))
+                  (every? (fn [x] ($call b 'has x)) ($spread a)))
     (map? a)    (and
                   (= (sort (keys a)) (sort (keys b)))
                   (every? (fn [x] (= (get a x) (get b x))) (keys a)))
@@ -242,8 +247,13 @@
 (def keys ('keys $Object))
 (def vals ('values $Object))
 (defn get [m k d] (or ($get m k) d))
-(defn contains? [m k] ($in k m))
-(defn merge [m n] ($call $Object 'assign {} m n))
+
+(defn contains? [m k]
+  (cond
+    (map? m) ($in k m)
+    (set? m) ($call m 'has k)))
+
+  (defn merge [m n] ($call $Object 'assign {} m n))
 
 (defn assoc [m & kvs]
   (loop [m ($call $Object 'assign {} m)
@@ -272,17 +282,28 @@
 (defn update [m k f & xs]
   (assoc m k (apply f (cons (get m k) xs))))
 
+(defn union [a b]
+  ($new $Set (concat ($spread a) ($spread b))))
+
+(defn intersection [a b]
+  ($new $Set (filter (fn [x] ($call b 'has x)) ($spread a))))
+
+(defn difference [a b]
+  ($new $Set (remove (fn [x] ($call b 'has x)) ($spread a))))
+
 (defn seq [c]
   (if (> (count c) 0)
     (cond
       (seq? c)    c
       (map? c)    (('entries $Object) c)
+      (set? c)    ($spread c)
       (string? c) ($call c 'split ""))))
 
 (defn conj [a & bs]
   (cond
     (nil? a) bs
     (seq? a) (concat a bs)
+    (set? a) ($new $Set (concat ($spread a) bs))
     (map? a) (loop [a (merge {} a)
                     n (first bs)
                     bs (rest bs)]
