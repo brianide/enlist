@@ -9,6 +9,7 @@
 (defn identity [a] a)
 (defn complement [p] (fn [& args] (not (apply p args))))
 (defn partial [f & xs] (fn [& ys] (apply f (concat xs ys))))
+(defn repeat [n x] ($call ($new $Array n) 'fill x))
 
 (defn count [c]
   (if (nil? c) 0
@@ -158,8 +159,12 @@
           f (if (seq? f) f (list f))]
       ^(->> (~@f ~v) ~@(rest fs)))))
 
-(defmacro as-> [v n & fs]
-  ^(let ~(reduce (fn [a f] (conj a n f)) [n v] fs) ~n))
+(defmacro as-> [expr name & forms]
+  ^(let [~name ~expr
+         ~@(interleave (repeat (dec (count forms)) name) (butlast forms))]
+     ~(if (empty? forms)
+        name
+        (last forms))))
 
 (defn == [a b]
   ($exact ($val a) ($val b)))
@@ -190,7 +195,6 @@
 (defn >= [a b] (or (> a b) (= a b)))
 (defn <= [a b] (or (< a b) (= a b)))
 
-(defn map [f coll] ($call coll 'map (fn [x] (f x))))
 (defn map-indexed [f coll] ($call coll 'map (fn [x i] (f i x))))
 (defn run! [f coll] ($call coll 'forEach (fn [x] (f x))))
 (defn filter [p coll] ($call coll 'filter (fn [x] (p x))))
@@ -204,6 +208,16 @@
 (defa range
   ([lo up] ($call $Array 'from {'length (- up lo)} (fn [x i] (+ lo i))))
   ([up] (range 0 up)))
+
+(defa map
+  ([f coll] ($call coll 'map (fn [x] (f x))))
+  ([f c1 & colls]
+    (let [all (cons c1 colls)
+          limit (reduce (fn [a v] (min a (count v))) ($get $Number 'MAX_SAFE_INTEGER) colls)]
+      ($call (range limit) 'map (fn [x i] (apply f (map (fn [c] (c i)) all)))))))
+
+(defn interleave [& colls]
+  (apply concat (apply map (cons list colls))))
 
 (defn split [s re] ($call s 'split re))
 (defa join ([coll] (join "" coll)) ([sep coll] ($call coll 'join sep)))
@@ -350,6 +364,14 @@
 
 (defn println [& s]
   (apply print (conj s "\n")))
+
+(defa pad-start
+  ([s len fill] ($call s 'padStart len fill))
+  ([s len] (pad-start s len " ")))
+
+(defa pad-end
+  ([s len fill] ($call s 'padEnd len fill))
+  ([s len] (pad-end s len " ")))
 
 ;;; Database stuff
 
