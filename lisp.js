@@ -51,7 +51,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 	},
 	
 	// Destructure b into symbol tree of in a
-	des = (ctx, a, b) => (arr(a) ? a.some((x, i) => (x == '&' ? (ctx[a[i + 1]] = b.slice(i), 1) : des(ctx, x, b[i]))) : (ctx[a] = b, 0), 0),
+	des = (ctx, a, b) => (arr(a) ? a.some((x, i) => (x == '&' ? (ctx[a[i + 1]] = b.slice(i), 1) : des(ctx, x, b[i]))) : ctx[a] = b, 0),
 	
 	// Returns a new context with the specified bindings applied. If e is
 	// truthy, values are (sequentially) evaluated; otherwise, they're applied
@@ -69,22 +69,22 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 	eof = {},
 	nop = {},
 	read_exp = (prog, reg, [m,r,s] = reg.exec(prog) || [eof]) =>
-		m[0] == ';'      ? nop
-		: m == "'"       ? ['quote', read_exp(prog, reg)]
-		: m == '^'       ? ['quasiquote', read_exp(prog, reg)]
-		: m == '~'       ? ['unquote', read_exp(prog, reg)]
-		: m == '~@'      ? ['splice-unquote', read_exp(prog, reg)]
-		: m == '@'       ? ['deref', read_exp(prog, reg)]
-		: m == '('       ? read_seq(prog, reg, ')')
-		: m == '['       ? read_seq(prog, reg, ']')
-		: m == '{'       ? ['hash-map', ...read_seq(prog, reg, '}')]
-		: m == 'true'    ? true
-		: m == 'false'   ? false
-		: m == 'nil'     ? void 0
-		: s !== void 0   ? (r && r[0] == 'r'
-		                        ? new RegExp(s, r.slice(1))
-		                        : ['quote', s])
-		: !isNaN(m)        ? +m
+		m[0] == ';'    ? nop
+		: m == "'"     ? ['quote', read_exp(prog, reg)]
+		: m == '^'     ? ['quasiquote', read_exp(prog, reg)]
+		: m == '~'     ? ['unquote', read_exp(prog, reg)]
+		: m == '~@'    ? ['splice-unquote', read_exp(prog, reg)]
+		: m == '@'     ? ['deref', read_exp(prog, reg)]
+		: m == '('     ? read_seq(prog, reg, ')')
+		: m == '['     ? read_seq(prog, reg, ']')
+		: m == '{'     ? ['hash-map', ...read_seq(prog, reg, '}')]
+		: m == 'true'  ? true
+		: m == 'false' ? false
+		: m == 'nil'   ? void 0
+		: s !== void 0 ? (r && r[0] == 'r'
+		                 ? new RegExp(s, r.slice(1))
+		               : ['quote', s])
+		: !isNaN(m)    ? +m
 		: m,
 	
 	// Read a list into the AST
@@ -92,16 +92,14 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		let ast = [], m;
 		for(;;) {
 			m = read_exp(prog, reg)
-			if([')',']','}',eof].includes(m))
+			if([')',']','}',eof].includes(m)) {
 				if(m == end)
-					break;
-				else
-					throw m != eof ? 'Unmatched ' + m : 'Unexpected EOF';
+					return ast;
+				throw 'Unexpected ' + (m != eof ? m : 'EOF');
+			}
 			if(m != nop)
 				ast.push(m);
 		}
-		
-		return ast;
 	},
 	
 	// Read a single object from a string
@@ -122,7 +120,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		: str(e) ? i[0][e]
 		: set(e) ? e.has(i[0]) && i[0]
 		: (obj(e) && str(i[0])) || (arr(e) && !isNaN(i[0])) ? e[i[0]]
-		: null[9],
+		: null[typeof e],
 
 	// Evaluate an expression	
 	eval_ = (a, ctx) => {
@@ -228,10 +226,10 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 	cor = {		
 		// Collection operations
 		'push!': (a, ...b) => (a.push(...b), a),  
-		range:   (a, b) => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
-		list:    (...a) => a, 
-		cons:    (i, a) => [i, ...a],
-		concat:  (...a) => [].concat(...a),
+		range:   (a, b)    => [...Array(def(b) ? b : a).keys()].slice(def(b) ? a : 0),
+		list:    (...a)    => a, 
+		cons:    (i, a)    => [i, ...a],
+		concat:  (...a)    => [].concat(...a),
 		apply: apply,
 		
 		// Hashmap functions
@@ -239,10 +237,10 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		set:         a     => new Set(a),
 		
 		// Arithmetic and boolean operators
-		'+':   (a, b) => a + b,
-		'-':   (a, b) => a - b,
-		'*':   (a, b) => a * b,
-		'/':   (a, b) => a / b,
+		'+':    (a, b) => a + b,
+		'-':    (a, b) => a - b,
+		'*':    (a, b) => a * b,
+		'/':    (a, b) => a / b,
 		mod:    (a, b) => a % b,
 		number:  a     => +a,
 		$eq:    (a, b) => a == b,
@@ -280,8 +278,8 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		$Number: Number,
 		$Object: Object,
 		$RegExp: RegExp,
-		$String: String,
 		$Set: Set,
+		$String: String,
 		
 		// Misc
 		atom: a => tag('A', {__a:a}),
@@ -324,6 +322,7 @@ function(cnt, arg) { // i:"(-> $env keys sort print)"
 		}
 
 	}), ['_core']);
+	//}), []);
 	
 	// Run script from args, or return evaluator
 	return arg ? rep(arg.i, arg, _ST) : rep;
