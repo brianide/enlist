@@ -1,7 +1,7 @@
-// Requires:
-// ug:  #s.sys.upgrades
-// cul: #s.sys.cull
-// bl:  #s.dd.lib
+;;; Requires
+;;;  ug:  #s.sys.upgrades
+;;;  cul: #s.sys.cull
+;;;  bl:  #s.dd.lib
 
 (def browse ('browse ($scr 'bl)))
 

@@ -57,6 +57,13 @@
 (defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
 (def rest (partial drop 1))
 
+(defn group-by [f coll]
+  (let [obj (hash-map)]
+    ($call coll 'forEach (fn [x]
+                           (let [fx (f x)]
+                             ($set! obj fx ($push! (or ($get obj fx) (list)) x)))))
+    obj))
+
 (defn drop-while [f coll]
   (if (some? coll)
     (let [cf (complement f)
@@ -335,8 +342,8 @@
       ($call reg 'exec s)
       (loop [acc (list)]
         (if-let [m ($call reg 'exec s)]
-          (recur ($push! acc m)))
-          acc)))
+          (recur ($push! acc m))
+          acc))))
   
 (defn re-find [reg s]
   (if ($get reg 'global)
@@ -354,7 +361,9 @@
 
 (defn $scr [n & args] (apply ('call ($args n)) args))
 
-;;; IO
+;;;;;;;;;;;;;;;;;;;;;
+;;; Formatting/IO ;;;
+;;;;;;;;;;;;;;;;;;;;;
 
 (defn prn [& s]
   ($push! $out (join " " (map prn-str s)) "\n"))
@@ -373,7 +382,45 @@
   ([s len fill] ($call s 'padEnd len fill))
   ([s len] (pad-end s len " ")))
 
-;;; Database stuff
+;;;;;;;;;;;;;;;;;;
+;;; Filesystem ;;;
+;;;;;;;;;;;;;;;;;;
 
-(defn list-files []
-  (map 'name ($call $db 'f {'type 'lisp_scr})))
+(defa list-files
+  ([user]
+    (map
+      'name
+      ($call $db 'f {'type 'fs_node
+                     'owner user
+                     '$or (list {'owner {'$eq ('caller $ctx)}} 
+                                {'public {'$eq true}})})))
+  ([] (list-files ('caller $ctx))))
+
+(defn list-publics []
+  (map
+    (juxt 'owner 'name)
+    ($call $db 'f {'type 'fs_node, 'public true})))
+
+(defa slurp
+  ([user file]
+    (if-let [res (first
+                   ($call $db 'f {'name file
+                                  'type 'fs_node
+                                  'owner user
+                                  '$or (list {'owner {'$eq ('caller $ctx)}}
+                                             {'public {'$eq true}})}))]
+      ('body res)))
+  ([file] (slurp ('caller $ctx) file)))
+
+(defa spit
+  ([name content opts]
+    (let [public (true? ('public opts))
+          query {'name name, 'type 'fs_node, 'owner ('caller $ctx), 'public public}
+          value (assoc query 'body content)]
+      ($call $db 'us query value)))
+  ([name content] (spit name content {})))
+
+(defn move-file [src dst pub]
+  ($call $db 'u {'name src, 'type 'fs_node, 'owner ('caller $ctx)}
+                {'$set {'name dst, 'public pub}}))
+
