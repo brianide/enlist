@@ -55,6 +55,7 @@
 (defn butlast [coll] (if (some? coll) ($call coll 'slice 0 (dec (count coll)))))
 (defn take [n coll] (if (some? coll) ($call coll 'slice 0 n)))
 (defn drop [n coll] (if (some? coll) ($call coll 'slice n)))
+(defn keep [f coll] (if (some? coll) (filter some? (map f coll))))
 (def rest (partial drop 1))
 
 (defn group-by [f coll]
@@ -222,6 +223,12 @@
     (let [all (cons c1 colls)
           limit (reduce (fn [a v] (min a (count v))) ($get $Number 'MAX_SAFE_INTEGER) colls)]
       ($call (range limit) 'map (fn [x i] (apply f (map (fn [c] (c i)) all)))))))
+
+(defn zipmap [ks vs]
+  (let [acc (hash-map)
+        kvs (map list ks vs)]
+    (run! (fn [[k v]] ($set! acc k v)) kvs)
+    acc))
 
 (defn interleave [& colls]
   (apply concat (apply map (cons list colls))))
